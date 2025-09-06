@@ -38,8 +38,8 @@ const RulesAndFramework = () => {
         const themesRes = await fetch('/api/themes')
         const themesJson = await themesRes.json()
         const themes: { name: string; count: number }[] = Array.isArray(themesJson.data) ? themesJson.data : []
-        // Pick the 3rd most trending theme (index 2), fallback to 2nd then 1st
-        const nextTrending = themes[2]?.name || themes[1]?.name || themes[0]?.name || ''
+        // Pick the 2nd most trending theme (index 1), fallback to 1st then 3rd
+        const nextTrending = themes[1]?.name || themes[0]?.name || themes[2]?.name || ''
         if (!mounted) return
         setTheme(nextTrending)
 
@@ -48,7 +48,48 @@ const RulesAndFramework = () => {
           const res = await fetch(`/api/search?themes=${encodeURIComponent(nextTrending)}&limit=2`)
           const json = await res.json()
           if (!mounted) return
-          setResources(Array.isArray(json.data) ? json.data : [])
+          
+          const resourceData = Array.isArray(json.data) ? json.data : []
+          
+          // Set initial resources without fallback images to allow OG images to show
+          const initialResources = resourceData.map((item: Resource) => ({
+            ...item,
+            image: item.image
+          }))
+          
+          setResources(initialResources)
+          
+          // Asynchronously fetch OG images without blocking the UI
+          initialResources.forEach((item: Resource) => {
+            if (item.linkToOriginalSource && item.linkToOriginalSource.startsWith('http')) {
+              fetch('/api/og-image-async', {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                  resourceId: item.id,
+                  url: item.linkToOriginalSource
+                })
+              })
+              .then(res => res.json())
+              .then(ogData => {
+                if (mounted && ogData.ogImage) {
+                  console.log('RulesAndFramework: OG image received for', ogData.resourceId, ogData.ogImage)
+                  setResources(prevResources => 
+                    prevResources.map(prevItem => 
+                      prevItem.id === ogData.resourceId 
+                        ? { ...prevItem, image: ogData.ogImage }
+                        : prevItem
+                    )
+                  )
+                }
+              })
+              .catch((error) => {
+                console.log('RulesAndFramework: OG image fetch failed for', item.linkToOriginalSource, error)
+              })
+            }
+          })
         } else {
           setResources([])
         }
@@ -98,9 +139,19 @@ const RulesAndFramework = () => {
             <Card className="border-0 shadow-none p-0">
               <CardContent className="p-0 relative group">
                 {item.image ? (
-                  <Image src={item.image} alt={item.title} width={400} height={400} className="w-full h-80 object-cover rounded-xl" />
+                  <Image 
+                    src={item.image} 
+                    alt={item.title} 
+                    width={400} 
+                    height={400} 
+                    className="w-full h-80 object-cover rounded-xl"
+                    onError={(e) => {
+                      const target = e.target as HTMLImageElement;
+                      target.src = "/Rules1.png";
+                    }}
+                  />
                 ) : (
-                  <div className="w-full h-80 rounded-xl bg-muted" />
+                  <Image src="/Rules1.png" alt="Default" width={400} height={400} className="w-full h-80 object-cover rounded-xl" />
                 )}
                 <div className="absolute w-full h-full left-0 top-0  justify-center py-6 md:group-hover:opacity-100 md:opacity-0 flex  transition-all duration-200">
                   <div className="w-11/12 flex justify-between h-fit">

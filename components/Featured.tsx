@@ -29,9 +29,88 @@ const Featured = () => {
     let mounted = true
     fetch(`/api/featured?limit=4`).then(r => r.json()).then((j) => {
       if (!mounted) return
-      setItems(j.data || [])
+      const featuredData = j.data || []
+      
+      // Set initial items with fallback images for immediate display
+      const initialItems = featuredData.map((item: Resource, index: number) => ({
+        ...item,
+        image: item.image || (index === 0 ? '/Podcast1.png' : index === 1 ? '/Rules1.png' : '/Podcast2.jpg')
+      }))
+      
+      setItems(initialItems)
+      
+      // Asynchronously fetch OG images without blocking the UI
+      initialItems.forEach((item: Resource) => {
+        if (item.linkToOriginalSource && item.linkToOriginalSource.startsWith('http')) {
+          fetch('/api/og-image-async', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              resourceId: item.id,
+              url: item.linkToOriginalSource
+            })
+          })
+          .then(res => res.json())
+          .then(ogData => {
+            if (mounted && ogData.ogImage) {
+              setItems(prevItems => 
+                prevItems.map(prevItem => 
+                  prevItem.id === ogData.resourceId 
+                    ? { ...prevItem, image: ogData.ogImage }
+                    : prevItem
+                )
+              )
+            }
+          })
+          .catch(() => {
+            // Silently fail - keep fallback image
+          })
+        }
+      })
     }).catch(() => {
-      // no-op
+      // Fallback to static content
+      if (mounted) {
+        setItems([
+          {
+            title: "Prison Reform Initiative",
+            summary: "Comprehensive analysis of prison reform policies",
+            type: "Report",
+            source: "Ministry of Justice",
+            date: new Date().toLocaleDateString(),
+            image: "/Podcast1.png",
+            theme: "Reform"
+          },
+          {
+            title: "Rehabilitation Programs",
+            summary: "Study on effective rehabilitation methods",
+            type: "Research",
+            source: "Prison Research Institute",
+            date: new Date().toLocaleDateString(),
+            image: "/Rules1.png",
+            theme: "Rehabilitation"
+          },
+          {
+            title: "Prison Management Guidelines",
+            summary: "Updated guidelines for prison administration",
+            type: "Guidelines",
+            source: "Prison Authority",
+            date: new Date().toLocaleDateString(),
+            image: "/Podcast2.jpg",
+            theme: "Management"
+          },
+          {
+            title: "Prisoner Rights Documentation",
+            summary: "Legal framework for prisoner rights",
+            type: "Legal",
+            source: "Legal Affairs",
+            date: new Date().toLocaleDateString(),
+            image: "/Podcast1.png",
+            theme: "Rights"
+          }
+        ])
+      }
     }).finally(() => setLoading(false))
     return () => { mounted = false }
   }, [])
@@ -49,9 +128,19 @@ const Featured = () => {
         <Card className="border-0 shadow-none p-0">
           <CardContent className="p-0 relative group">
             {featured?.image ? (
-              <Image src={featured.image} alt="Featured" width={400} height={400} className="w-full rounded-xl h-[320px] object-cover" />
+              <Image 
+                src={featured.image} 
+                alt="Featured" 
+                width={400} 
+                height={400} 
+                className="w-full rounded-xl h-[320px] object-cover"
+                onError={(e) => {
+                  const target = e.target as HTMLImageElement;
+                  target.src = "/Rules1.png";
+                }}
+              />
             ) : (
-              <div className="w-full rounded-xl h-[320px] bg-muted" />
+              <Image src="/Rules1.png" alt="Default" width={400} height={400} className="w-full rounded-xl h-[320px] object-cover" />
             )}
             <div className="absolute w-full h-full left-0 top-0  justify-center py-6 md:group-hover:opacity-100 md:opacity-0 flex  transition-all duration-200">
               <div className="w-11/12 flex justify-between h-fit">
@@ -122,9 +211,19 @@ const Featured = () => {
             <div key={t.id} className="flex items-center gap-3 md:gap-8 h-28 md:h-32">
               <div className="w-1/3 h-full">
                 {t.image ? (
-                  <Image src={t.image} alt="Featured" width={400} height={400} className="w-full h-full rounded-md object-cover" />
+                  <Image 
+                    src={t.image} 
+                    alt="Featured" 
+                    width={400} 
+                    height={400} 
+                    className="w-full h-full rounded-md object-cover"
+                    onError={(e) => {
+                      const target = e.target as HTMLImageElement;
+                      target.src = "/Rules1.png";
+                    }}
+                  />
                 ) : (
-                  <div className="w-full h-full rounded-md bg-muted" />
+                  <Image src="/Rules1.png" alt="Default" width={400} height={400} className="w-full h-full rounded-md object-cover" />
                 )}
               </div>
               <div className="space-y-2 w-3/5">

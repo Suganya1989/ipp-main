@@ -39,11 +39,23 @@ export async function GET(request: Request) {
       }))
     )
 
+    // Return resources immediately without OG image fetching for fast loading
+    const resourcesWithOGImages = allResources
+
+    // Update theme resources with OG images
+    const updatedThemeResources = themeResources.map(tr => ({
+      ...tr,
+      resources: tr.resources.map(resource => {
+        const updatedResource = resourcesWithOGImages.find(r => r.id === resource.id)
+        return updatedResource || resource
+      })
+    }))
+
     return NextResponse.json({
-      themes: themeResources,
-      resources: allResources,
+      themes: updatedThemeResources,
+      resources: resourcesWithOGImages,
       totalThemes: themes.length,
-      totalResources: allResources.length
+      totalResources: resourcesWithOGImages.length
     })
 
   } catch (error: unknown) {

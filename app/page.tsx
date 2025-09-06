@@ -92,7 +92,7 @@ export default function Home() {
       <PodcastCards startIndex={0} />
       <ShareCard />
       <OverCrowding />
-      <PodcastCards startIndex={3} />
+      <PodcastCards startIndex={4} />
       <MoreTopics />
     </div>
   );
