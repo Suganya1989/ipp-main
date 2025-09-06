@@ -24,6 +24,7 @@ type Resource = {
   theme?: string;
   authors?: string;
   linkToOriginalSource?: string;
+  themeCategory?: string;
 }
 
 const PodcastCards = () => {
@@ -32,29 +33,37 @@ const PodcastCards = () => {
   useEffect(() => {
     let mounted = true
     
-    // Single optimized API call to get all data at once
-    fetch('/api/featured?limit=3')
+    // Use dashboard API to get theme-based resources
+    fetch('/api/dashboard?limitPerTheme=1')
       .then(res => res.json())
       .then(data => {
         if (!mounted) return
         
-        const resources = data?.resources || data || []
-        // Set all items at once instead of processing individually
-        setItems(resources.slice(0, 3).map((item: Resource, index: number) => ({
+        const themes = data?.themes || []
+        // Get one resource from each of the first 3 themes
+        const selectedResources = themes.slice(0, 3).map((themeData: { theme: string; resources: Resource[] }) => {
+          const resource = themeData.resources[0] // Get first resource from each theme
+          return resource ? {
+            ...resource,
+            themeCategory: themeData.theme
+          } : null
+        }).filter(Boolean) // Remove null entries
+        
+        // Set all items at once from theme-based content
+        setItems(selectedResources.slice(0, 3).map((item: Resource, index: number) => ({
           ...item,
           image: item.image || (index === 0 ? '/Podcast1.png' : index === 1 ? '/Rules1.png' : '/Podcast2.jpg'),
-          title: item.title || `Resource ${index + 1}`,
-          theme: item.theme || 'General',
+          title: item.title || `Theme Resource ${index + 1}`,
+          theme: item.theme || item.themeCategory || 'General',
           type: item.type || 'Report',
           source: item.source || 'Unknown Source',
           date: item.date || new Date().toLocaleDateString()
         })))
       })
       .catch(() => {
-         setItems([
-          ])
+        // Fallback to empty array if API fails
+        setItems([])
       })
-    // Fallback to static data if API fails
        
     return () => { mounted = false }
   }, [])
@@ -63,11 +72,11 @@ const PodcastCards = () => {
   const [card1, card2, card3] = items
   return (
     <div className="flex items-center justify-center">
-      <div className="grid grid-cols-1 md:grid-cols-3 w-full md:w-11/12 gap-4 min-h-[24rem]">
+      <div className="grid grid-cols-1 md:grid-cols-3 w-full md:w-11/12 gap-6 min-h-[32rem]">
         <Link href="/topics" className="block">
-          <Card className="border-0 shadow-none p-0 h-[24rem] w-full">
+          <Card className="border-0 shadow-none p-0 h-[32rem] w-full">
             <CardContent className="p-0 relative group overflow-hidden h-full w-full">
-            <div className="h-96 w-full overflow-hidden rounded-xl">
+            <div className="h-[28rem] w-full overflow-hidden rounded-xl">
             <Image src={card1?.image || "/Podcast1.png"} alt="Featured" width={400} height={400} className="w-full h-full object-cover" />
             </div>
             <div className="absolute w-full h-full bg-gradient-to-b from-zinc-700/10 to-zinc-900/60 left-0 top-0 justify-between py-4 items-center flex flex-col transition-all duration-200 rounded-xl">
@@ -114,9 +123,9 @@ const PodcastCards = () => {
           </Card>
         </Link>
         <Link href="/topics" className="block">
-          <Card className="border-0 shadow-none p-0 h-[24rem] w-full">
+          <Card className="border-0 shadow-none p-0 h-[32rem] w-full">
             <CardContent className="p-0 relative group overflow-hidden h-full w-full">
-            <div className="h-96 w-full overflow-hidden rounded-xl">
+            <div className="h-[28rem] w-full overflow-hidden rounded-xl">
             <Image src={card2?.image || "/Rules1.png"} alt="Featured" width={400} height={400} className="w-full h-full object-cover" />
             </div>
             <div className="absolute w-full h-full bg-gradient-to-b from-zinc-700/10 to-zinc-900/60 left-0 top-0 justify-between py-4 items-center flex flex-col transition-all duration-200 rounded-xl">
@@ -163,9 +172,9 @@ const PodcastCards = () => {
           </Card>
         </Link>
         <Link href="/topics" className="block">
-          <Card className="border-0 shadow-none p-0 h-[24rem] w-full">
+          <Card className="border-0 shadow-none p-0 h-[32rem] w-full">
             <CardContent className="p-0 relative group overflow-hidden h-full w-full">
-            <div className="h-96 w-full overflow-hidden rounded-xl">
+            <div className="h-[28rem] w-full overflow-hidden rounded-xl">
             <Image src={card3?.image || "/Podcast2.jpg"} alt="Featured" width={400} height={400} className="w-full h-full object-cover" />
             </div>
             <div className="absolute w-full h-full bg-gradient-to-b from-zinc-700/10 to-zinc-900/60 left-0 top-0 justify-between py-4 items-center flex flex-col transition-all duration-200 rounded-xl">

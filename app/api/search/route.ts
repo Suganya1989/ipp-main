@@ -4,6 +4,8 @@ import { searchResourcesByKeyword, searchResourcesWithFilters } from '@/lib/weav
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url)
+
+    console.log(searchParams);
     const query = searchParams.get('query') || ''
     const limit = Number(searchParams.get('limit') ?? '20')
 
