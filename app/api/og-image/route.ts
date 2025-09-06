@@ -1,5 +1,9 @@
 import { NextResponse } from 'next/server'
 
+// In-memory cache for OG images
+const ogImageCache = new Map<string, { image: string; timestamp: number }>()
+const CACHE_DURATION = 24 * 60 * 60 * 1000 // 24 hours in milliseconds
+
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url)
@@ -7,6 +11,12 @@ export async function GET(request: Request) {
     
     if (!url) {
       return NextResponse.json({ error: 'URL parameter is required' }, { status: 400 })
+    }
+
+    // Check cache first
+    const cached = ogImageCache.get(url)
+    if (cached && Date.now() - cached.timestamp < CACHE_DURATION) {
+      return NextResponse.json({ ogImage: cached.image })
     }
 
     // Validate URL
@@ -77,6 +87,8 @@ export async function GET(request: Request) {
         // Validate the final image URL
         try {
           new URL(ogImage)
+          // Cache the successful result
+          ogImageCache.set(url, { image: ogImage, timestamp: Date.now() })
           return NextResponse.json({ ogImage })
         } catch {
           return NextResponse.json({ error: 'Invalid OG image URL format' }, { status: 400 })

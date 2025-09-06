@@ -150,7 +150,7 @@ const PodcastCards = ({ startIndex = 0 }: PodcastCardsProps) => {
                     </div>
                   </div>
                   <div className="w-11/12 flex flex-col items-start gap-1 md:gap-2">
-                    <p className="text-white/80 text-xs md:text-sm leading-4 md:leading-5 line-clamp-2">{card?.description}</p>
+                    <p className="text-white/80 text-xs md:text-sm leading-4 md:leading-5 line-clamp-2">{card?.summary}</p>
                     <Label className="text-white/80 uppercase">{card?.theme || 'Theme'}</Label>
                     <h3 className="text-white font-medium text-base md:text-lg leading-5 md:leading-6 line-clamp-2">{card?.title}</h3>
                     <div className="flex items-center gap-2">
