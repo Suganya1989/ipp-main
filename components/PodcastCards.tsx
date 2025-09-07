@@ -29,10 +29,12 @@ type Resource = {
   themeCategory?: string;
 }
 
+interface PodcastCardsProps {
+  startIndex?: number;
+}
 
-const PodcastCards = () => {
+const PodcastCards = ({ startIndex = 0 }: PodcastCardsProps) => {
   const [items, setItems] = useState<Resource[]>([])
-  const [startIndex, setStartIndex] = useState(0)
   const router = useRouter()
 
   useEffect(() => {

@@ -41,6 +41,9 @@ const ResourceDetailsPage = () => {
   const [resource, setResource] = useState<Resource | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [imageLoading, setImageLoading] = useState(true)
+  const [imageError, setImageError] = useState(false)
+  const [ogImage, setOgImage] = useState<string | null>(null)
 
   useEffect(() => {
     const fetchResource = async () => {
@@ -56,6 +59,24 @@ const ResourceDetailsPage = () => {
 
         const data = await response.json()
         setResource(data.resource)
+        
+        // Reset image states when new resource loads
+        setImageLoading(data.resource.image ? true : false)
+        setImageError(false)
+        setOgImage(null)
+        
+        // Fetch OG image if resource has linkToOriginalSource but no image
+        if (data.resource.linkToOriginalSource && !data.resource.image) {
+          setImageLoading(true)
+          // Add timeout to prevent indefinite loading
+          const timeoutId = setTimeout(() => {
+            setImageLoading(false)
+          }, 10000) // 10 second timeout
+          
+          fetchOGImage(data.resource.id, data.resource.linkToOriginalSource).finally(() => {
+            clearTimeout(timeoutId)
+          })
+        }
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to load resource')
       } finally {
@@ -65,6 +86,44 @@ const ResourceDetailsPage = () => {
 
     fetchResource()
   }, [params.id])
+
+  // Function to fetch OG image
+  const fetchOGImage = async (resourceId: string, url: string) => {
+    try {
+      // Add timeout to the fetch request
+      const controller = new AbortController()
+      const timeoutId = setTimeout(() => controller.abort(), 8000) // 8 second timeout
+      
+      const response = await fetch('/api/og-image-async', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          resourceId,
+          url
+        }),
+        signal: controller.signal
+      })
+
+      clearTimeout(timeoutId)
+
+      if (response.ok) {
+        const ogData = await response.json()
+        if (ogData.ogImage) {
+          setOgImage(ogData.ogImage)
+        }
+      }
+    } catch (error) {
+      if (error instanceof Error && error.name === 'AbortError') {
+        console.log('OG image fetch timed out')
+      } else {
+        console.error('Error fetching OG image:', error)
+      }
+    } finally {
+      setImageLoading(false)
+    }
+  }
 
   if (loading) {
     return (
@@ -109,18 +168,28 @@ const ResourceDetailsPage = () => {
         <Card className="overflow-hidden">
           <CardContent className="p-0">
             {/* Hero Image */}
-            {resource.image && (
+            {(resource.image || ogImage || imageLoading) && (
               <div className="relative h-64 md:h-96 w-full">
-                <Image
-                  src={resource.image}
-                  alt={resource.title}
-                  fill
-                  className="object-cover"
-                  onError={(e) => {
-                    const target = e.target as HTMLImageElement;
-                    target.src = "/Rules1.png";
-                  }}
-                />
+                {imageLoading && !imageError && (
+                  <div className="absolute inset-0 bg-muted animate-pulse"></div>
+                )}
+                
+                {(resource.image || ogImage) && !imageError && (
+                  <Image
+                    src={resource.image || ogImage || ''}
+                    alt={resource.title}
+                    fill
+                    className="object-cover"
+                    priority
+                    sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+                    onLoad={() => setImageLoading(false)}
+                    onError={() => {
+                      setImageError(true)
+                      setImageLoading(false)
+                    }}
+                  />
+                )}
+                
                 <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
                 <div className="absolute bottom-4 left-4 right-4">
                   <Badge variant="secondary" className="mb-2">
@@ -136,7 +205,7 @@ const ResourceDetailsPage = () => {
             {/* Content */}
             <div className="p-6 md:p-8 space-y-6">
               {/* Title (if no image) */}
-              {!resource.image && (
+              {!resource.image && !ogImage && !imageLoading && (
                 <div>
                   <Badge variant="secondary" className="mb-4">
                     {resource.type || resource.sourceType || 'Resource'}

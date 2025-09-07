@@ -4,8 +4,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardFooter } from '@/components/ui/card'
 import { Label } from '@/components/ui/label'
-import { Separator } from '@/components/ui/separator'
-import { Bookmark, BookOpen, FileText, Pencil, Send, Sparkle } from 'lucide-react'
+import { Bookmark, BookOpen, Pencil, Send, Sparkle } from 'lucide-react'
 import Image from 'next/image'
 import Link from 'next/link'
 import { useEffect, useState } from 'react'
@@ -50,7 +49,7 @@ const OverCrowding = () => {
           // Set initial resources without fallback images to allow OG images to show
           const initialResources = resourceData.map((item: Resource) => ({
             ...item,
-            image: item.image
+            image: item.image || undefined
           }))
           
           setResources(initialResources)

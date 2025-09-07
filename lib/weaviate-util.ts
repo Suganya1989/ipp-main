@@ -155,7 +155,7 @@ function mapWeaviateItemToPrisonResource(item: unknown, index: number): PrisonRe
   const source = String((rec.sourcePlatform ?? rec.authors ?? props?.sourcePlatform ?? props?.authors ?? 'Unknown Source'));
   const date = formatDate(rec.dateOfPublication ?? props?.dateOfPublication);
   const image = typeof rec.image === 'string' && rec.image ? rec.image
-    : (typeof (rec.thumbnailUrl as unknown) === 'string' && (rec.thumbnailUrl as unknown as string)) || '/placeholder.svg?height=200&width=300';
+    : (typeof (rec.thumbnailUrl as unknown) === 'string' && (rec.thumbnailUrl as unknown as string)) || undefined;
   const sourceType = String(rec.sourceType ?? props?.sourceType ?? '');
   const sourcePlatform = String(rec.sourcePlatform ?? props?.sourcePlatform ?? '');
   const authors = String(rec.authors ?? props?.authors ?? '');
