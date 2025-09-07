@@ -10,8 +10,8 @@ import { Bookmark, FileText, Pencil, Send, Sparkle } from 'lucide-react'
 import { Instrument_Serif } from 'next/font/google'
 import Image from 'next/image'
 import Link from 'next/link'
-import { useRouter, useSearchParams } from 'next/navigation'
-import { useEffect, useState } from 'react'
+import { useSearchParams } from 'next/navigation'
+import { useEffect, useState, Suspense } from 'react'
 
 const instrument_serif = Instrument_Serif({
     subsets: ["latin"],
@@ -49,7 +49,7 @@ type Resource = {
     linkToOriginalSource?: string;
 }
 
-const TopicsPage = () => {
+const TopicsPageContent = () => {
     const searchParams = useSearchParams()
     const theme = searchParams.get('theme')
     const [resources, setResources] = useState<Resource[]>([])
@@ -348,6 +348,14 @@ const TopicsPage = () => {
                 )}
             </div>
         </div>
+    )
+}
+
+const TopicsPage = () => {
+    return (
+        <Suspense fallback={<div className="min-h-screen flex items-center justify-center">Loading...</div>}>
+            <TopicsPageContent />
+        </Suspense>
     )
 }
 
