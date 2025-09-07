@@ -33,7 +33,7 @@ export default function Home() {
 
   useEffect(() => {
     let mounted = true
-    fetch('/api/categories')
+    fetch('/api/themes')
       .then(r => r.json())
       .then(j => { if (mounted) setTrending(Array.isArray(j.data) ? j.data : []) })
       .catch(() => {})
@@ -73,13 +73,13 @@ export default function Home() {
             <span className="font-medium">🔥 Trending:</span>
           </div>
           <div className="flex flex-wrap gap-1.5 md:gap-3">
-            {trending.slice(0,4).map((t) => (
+            {trending.slice(0,5).map((t) => (
               <Button
                 key={t.name}
                 variant="outline"
                 size="sm"
                 className="rounded-full px-4 text-muted-foreground shadow-none"
-                onClick={() => router.push(`/search?query=${encodeURIComponent(t.name)}`)}
+                onClick={() => router.push(`/topics?theme=${encodeURIComponent(t.name)}`)}
               >
                 {t.name}
               </Button>

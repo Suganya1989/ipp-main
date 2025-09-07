@@ -108,6 +108,7 @@ export async function GET(request: Request) {
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : String(error)
     console.error('OG image extraction error:', message)
-    return NextResponse.json({ error: 'Failed to extract OG image' }, { status: 500 })
+    // Return 404 instead of 500 to indicate no image found
+    return NextResponse.json({ error: 'No OG image found' }, { status: 404 })
   }
 }

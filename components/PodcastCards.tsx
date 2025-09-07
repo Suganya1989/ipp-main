@@ -11,6 +11,7 @@ import { Label } from "@/components/ui/label";
 import { Bookmark, FileText, Pencil, Send, Sparkle } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
 type Resource = {
@@ -22,17 +23,17 @@ type Resource = {
   date: string;
   image?: string;
   theme?: string;
+  tags?: string[];
   authors?: string;
   linkToOriginalSource?: string;
   themeCategory?: string;
 }
 
-interface PodcastCardsProps {
-  startIndex?: number;
-}
 
-const PodcastCards = ({ startIndex = 0 }: PodcastCardsProps) => {
+const PodcastCards = () => {
   const [items, setItems] = useState<Resource[]>([])
+  const [startIndex, setStartIndex] = useState(0)
+  const router = useRouter()
 
   useEffect(() => {
     let mounted = true
@@ -110,8 +111,8 @@ const PodcastCards = ({ startIndex = 0 }: PodcastCardsProps) => {
   return (
     <div className="flex items-center justify-center">
       <div className="grid grid-cols-1 md:grid-cols-3 w-11/12 md:w-10/12 gap-4 md:gap-6 min-h-[24rem] md:min-h-[32rem]">
-        {items.slice(0, 3).map((card, index) => (
-          <Link key={card?.id || index} href="/topics" className="block">
+        {items.map((card, index) => (
+          <Link key={card.id || index} href={`/resource/${card.id || encodeURIComponent(card.title)}`} className="block">
             <Card className="border-0 shadow-none p-0 h-[24rem] md:h-[32rem] w-full">
               <CardContent className="p-0 relative group overflow-hidden h-full w-full">
                 <div className="h-[20rem] md:h-[28rem] w-full overflow-hidden rounded-xl">
@@ -151,7 +152,19 @@ const PodcastCards = ({ startIndex = 0 }: PodcastCardsProps) => {
                   </div>
                   <div className="w-11/12 flex flex-col items-start gap-1 md:gap-2">
                     <p className="text-white/80 text-xs md:text-sm leading-4 md:leading-5 line-clamp-2">{card?.summary}</p>
-                    <Label className="text-white/80 uppercase">{card?.theme || 'Theme'}</Label>
+                    <Label 
+                      className="text-white/80 uppercase cursor-pointer hover:text-white transition-colors" 
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        const displayTag = card?.tags?.[0] || card?.theme;
+                        if (displayTag) {
+                          router.push(`/topics?theme=${encodeURIComponent(displayTag)}`);
+                        }
+                      }}
+                    >
+                      {card?.tags?.[0] || card?.theme || 'Theme'}
+                    </Label>
                     <h3 className="text-white font-medium text-base md:text-lg leading-5 md:leading-6 line-clamp-2">{card?.title}</h3>
                     <div className="flex items-center gap-2">
                       <Avatar className="rounded-full size-6">

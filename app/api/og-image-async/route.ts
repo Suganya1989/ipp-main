@@ -5,8 +5,11 @@ const ogImageCache = new Map<string, { image: string; timestamp: number }>()
 const CACHE_DURATION = 24 * 60 * 60 * 1000 // 24 hours in milliseconds
 
 export async function POST(request: Request) {
+  let resourceId: string | undefined
   try {
-    const { resourceId, url } = await request.json()
+    const requestData = await request.json()
+    resourceId = requestData.resourceId
+    const url = requestData.url
     
     if (!resourceId || !url) {
       return NextResponse.json({ error: 'resourceId and url are required' }, { status: 400 })
@@ -107,6 +110,7 @@ export async function POST(request: Request) {
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : String(error)
     console.error('Async OG image extraction error:', message)
-    return NextResponse.json({ error: 'Failed to extract OG image' }, { status: 500 })
+    // Return success response with null ogImage instead of 500 error
+    return NextResponse.json({ resourceId, ogImage: null })
   }
 }

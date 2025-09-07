@@ -1,12 +1,14 @@
 "use client"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardFooter } from "@/components/ui/card";
-import { Label } from "@/components/ui/label";
-import { Bookmark, BookOpen, Pencil, Send, Sparkle, Sparkles, Zap } from "lucide-react";
-import Image from "next/image";
-import { useEffect, useState } from "react";
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import { Card, CardContent, CardFooter } from '@/components/ui/card'
+import { Label } from '@/components/ui/label'
+import { Separator } from '@/components/ui/separator'
+import { Bookmark, BookOpen, FileText, Pencil, Send, Sparkle, Sparkles, Zap } from 'lucide-react'
+import Image from 'next/image'
+import Link from 'next/link'
+import { useEffect, useState } from 'react'
 
 type Resource = {
   id?: string;
@@ -17,6 +19,7 @@ type Resource = {
   date: string;
   image?: string;
   theme?: string;
+  tags?: string[];
   authors?: string;
   linkToOriginalSource?: string;
 }
@@ -125,8 +128,9 @@ const Featured = () => {
           <Sparkles className="size-4" strokeWidth={1.5} />
           <h3>Featured</h3>
         </div>
-        <Card className="border-0 shadow-none p-0">
-          <CardContent className="p-0 relative group">
+        <Link href={`/resource/${featured?.id || encodeURIComponent(featured?.title || '')}`}>
+          <Card className="border-0 shadow-none p-0">
+            <CardContent className="p-0 relative group">
             {featured?.image ? (
               <Image 
                 src={featured.image} 
@@ -181,6 +185,7 @@ const Featured = () => {
             </div>
           </CardFooter>
         </Card>
+        </Link>
       </div>
       <div className="h-px md:h-[550px] w-full md:w-px bg-border" />
       <div className="w-full md:w-[45%] space-y-6">
@@ -208,7 +213,7 @@ const Featured = () => {
             </>
           )}
           {!loading && trending.map((t) => (
-            <div key={t.id} className="flex items-center gap-3 md:gap-8 h-28 md:h-32">
+            <Link key={t.id} href={`/resource/${t.id || encodeURIComponent(t.title)}`} className="flex items-center gap-3 md:gap-8 h-28 md:h-32">
               <div className="w-1/3 h-full">
                 {t.image ? (
                   <Image 
@@ -239,7 +244,7 @@ const Featured = () => {
                   <h4 className="text-sm text-muted-foreground">{t.source || 'Source'}</h4>
                 </div>
               </div>
-            </div>
+            </Link>
           ))}
           {trending.length === 0 && !loading && (
             <div className="text-sm text-muted-foreground">No trending items.</div>

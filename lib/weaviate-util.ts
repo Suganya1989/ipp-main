@@ -653,7 +653,65 @@ export async function getCategories(): Promise<Category[]> {
   }
 }
 
-// Method 6: Get all themes with resource counts
+// Method 6: Get all tags with resource counts
+export async function getTagsWithCounts(): Promise<Category[]> {
+  try {
+    const client = getClient();
+    const schema = await client.schema.getter().do() as WeaviateSchema;
+
+    const classSchema = schema?.classes?.find((c) => c.class === 'Docs');
+    const properties = classSchema?.properties?.map((p) => p.name);
+
+    const fields = properties?.join(' ');
+    const fieldSelection = fields && fields.length > 0
+      ? `${fields} _additional { id }`
+      : `keywords _additional { id }`;
+    
+    // Get all resources to count tags
+    const res = await client.graphql
+      .get()
+      .withClassName('Docs')
+      .withFields(fieldSelection)
+      .withLimit(1000) // Get a large number to capture all tags
+      .do();
+
+    type DocLite = { keywords?: unknown; properties?: { keywords?: unknown } };
+    const resources = ((res as WeaviateGetResponse)?.data?.Get?.Docs ?? []) as DocLite[];
+
+    // Count tags from keywords
+    const tagCounts = new Map<string, number>();
+    
+    resources.forEach((resource: DocLite) => {
+      const keywords = resource.keywords ?? resource.properties?.keywords;
+      const tags = parseKeywords(keywords);
+      
+      tags.forEach(tag => {
+        if (tag && tag.trim() && tag !== 'null' && tag !== 'undefined') {
+          const tagStr = tag.trim();
+          tagCounts.set(tagStr, (tagCounts.get(tagStr) || 0) + 1);
+        }
+      });
+    });
+
+    // Convert to Category array and sort by count
+    const tags: Category[] = Array.from(tagCounts.entries())
+      .map(([tag, count]) => ({
+        name: tag,
+        count: count,
+        href: `/tag/${encodeURIComponent(tag.toLowerCase().replace(/\s+/g, '-'))}`
+      }))
+      .sort((a, b) => b.count - a.count);
+    
+    console.log('Tags with counts:', tags);
+    return tags;
+
+  } catch (error) {
+    console.error('Error fetching tags from Weaviate:', error);
+    return [];
+  }
+}
+
+// Method 7: Get all themes with resource counts
 export async function getThemesWithCounts(): Promise<Category[]> {
   try {
     const client = getClient();

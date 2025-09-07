@@ -1,16 +1,14 @@
 "use client"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import {
-    Card,
-    CardContent,
-    CardFooter
-} from "@/components/ui/card";
-import { Label } from "@/components/ui/label";
-import { Bookmark, BookOpen, Pencil, Send, Sparkle } from "lucide-react";
-import Image from "next/image";
-import { useEffect, useState } from "react";
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import { Card, CardContent, CardFooter } from '@/components/ui/card'
+import { Label } from '@/components/ui/label'
+import { Separator } from '@/components/ui/separator'
+import { Bookmark, BookOpen, FileText, Pencil, Send, Sparkle } from 'lucide-react'
+import Image from 'next/image'
+import Link from 'next/link'
+import { useEffect, useState } from 'react'
 
 type Resource = {
   id?: string;
@@ -21,6 +19,7 @@ type Resource = {
   date: string;
   image?: string;
   theme?: string;
+  tags?: string[];
   authors?: string;
   linkToOriginalSource?: string;
 }
@@ -130,22 +129,22 @@ const OverCrowding = () => {
             ))}
           </>
         )}
-        {!loading && cards.map((item, idx) => (
-          <div key={item.id || idx} className="w-full md:w-[45%] space-y-6">
-            <Card className="border-0 shadow-none p-0">
-              <CardContent className="p-0 relative group">
-                {item.image ? (
-                  <Image 
-                    src={item.image} 
-                    alt={item.title} 
-                    width={400} 
-                    height={400} 
-                    className="w-full h-80 object-cover rounded-xl"
-                    onError={(e) => {
-                      const target = e.target as HTMLImageElement;
-                      target.src = "/Rules1.png";
-                    }}
-                  />
+        {!loading && cards.map((item, index) => (
+            <Link key={item.id || index} href={`/resource/${item.id || encodeURIComponent(item.title)}`} className="block w-full md:w-5/12">
+              <Card className="border-0 shadow-none p-0 h-fit md:h-96 w-full">
+                <CardContent className="p-0 relative group overflow-hidden h-full w-full">
+                  {item.image ? (
+                    <Image 
+                      src={item.image} 
+                      alt={item.title} 
+                      width={400} 
+                      height={400} 
+                      className="w-full h-80 object-cover rounded-xl"
+                      onError={(e) => {
+                        const target = e.target as HTMLImageElement;
+                        target.src = "/Rules1.png";
+                      }}
+                    />
                 ) : (
                   <Image src="/Rules1.png" alt="Default" width={400} height={400} className="w-full h-80 object-cover rounded-xl" />
                 )}
@@ -170,7 +169,7 @@ const OverCrowding = () => {
                 </div>
               </CardContent>
               <CardFooter className="flex flex-col items-start p-0 space-y-3">
-                <Label className="text-muted-foreground uppercase">{item.theme || theme || 'Theme'}</Label>
+                <Label className="text-muted-foreground uppercase">{item.tags?.[0] || item.theme || theme || 'Theme'}</Label>
                 <h2 className="text-2xl font-semibold text-brand-primary-900 line-clamp-2">{item.title || 'Resource Title'}</h2>
                 <div className="flex items-center gap-2">
                   <Avatar className="rounded-full size-6">
@@ -188,7 +187,7 @@ const OverCrowding = () => {
                 </div>
               </CardFooter>
             </Card>
-          </div>
+          </Link>
         ))}
       </section>
       {!loading && cards.length === 0 && (
