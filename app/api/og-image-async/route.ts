@@ -29,7 +29,8 @@ export async function POST(request: Request) {
         throw new Error('Invalid protocol')
       }
     } catch {
-      return NextResponse.json({ error: 'Invalid URL' }, { status: 400 })
+      console.log(`Invalid URL provided: ${url}`)
+      return NextResponse.json({ resourceId, ogImage: null })
     }
 
     // Fetch the webpage with timeout
@@ -47,7 +48,8 @@ export async function POST(request: Request) {
       clearTimeout(timeoutId)
 
       if (!response.ok) {
-        return NextResponse.json({ error: 'Failed to fetch URL' }, { status: 400 })
+        console.log(`Failed to fetch URL ${url}: ${response.status} ${response.statusText}`)
+        return NextResponse.json({ resourceId, ogImage: null })
       }
 
       const html = await response.text()
@@ -80,7 +82,8 @@ export async function POST(request: Request) {
           try {
             ogImage = new URL(ogImage, targetUrl.toString()).toString()
           } catch {
-            return NextResponse.json({ error: 'Invalid relative OG image URL' }, { status: 400 })
+            console.log(`Invalid relative OG image URL: ${ogImage}`)
+            return NextResponse.json({ resourceId, ogImage: null })
           }
         } else if (ogImage.startsWith('//')) {
           ogImage = `${targetUrl.protocol}${ogImage}`
@@ -93,7 +96,8 @@ export async function POST(request: Request) {
           ogImageCache.set(url, { image: ogImage, timestamp: Date.now() })
           return NextResponse.json({ resourceId, ogImage })
         } catch {
-          return NextResponse.json({ error: 'Invalid OG image URL format' }, { status: 400 })
+          console.log(`Invalid OG image URL format: ${ogImage}`)
+          return NextResponse.json({ resourceId, ogImage: null })
         }
       }
 

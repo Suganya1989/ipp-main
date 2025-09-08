@@ -3,9 +3,9 @@
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent } from '@/components/ui/card'
-import { Separator } from '@/components/ui/separator'
-import { ArrowLeft, Calendar, ExternalLink, MapPin, Tag, User } from 'lucide-react'
+import { Card, CardContent, CardFooter } from '@/components/ui/card'
+import { Label } from '@/components/ui/label'
+import { ArrowLeft, Calendar, ExternalLink, MapPin, User, FileText, Bookmark, Pencil, Send, Sparkle } from 'lucide-react'
 import { Instrument_Serif } from 'next/font/google'
 import Image from 'next/image'
 import Link from 'next/link'
@@ -39,6 +39,7 @@ const ResourceDetailsPage = () => {
   const params = useParams()
   const router = useRouter()
   const [resource, setResource] = useState<Resource | null>(null)
+  const [relatedResources, setRelatedResources] = useState<Resource[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [imageLoading, setImageLoading] = useState(true)
@@ -77,6 +78,11 @@ const ResourceDetailsPage = () => {
             clearTimeout(timeoutId)
           })
         }
+
+        // Fetch related resources based on theme
+        if (data.resource.theme) {
+          fetchRelatedResources(data.resource.theme, data.resource.id)
+        }
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to load resource')
       } finally {
@@ -86,6 +92,24 @@ const ResourceDetailsPage = () => {
 
     fetchResource()
   }, [params.id])
+
+  // Function to fetch related resources
+  const fetchRelatedResources = async (theme: string, currentResourceId: string) => {
+    try {
+      const response = await fetch(`/api/search?themes=${encodeURIComponent(theme)}&limit=6`)
+      const data = await response.json()
+      
+      if (data.data && Array.isArray(data.data)) {
+        // Filter out the current resource and take first 3
+        const filtered = data.data
+          .filter((item: Resource) => item.id !== currentResourceId)
+          .slice(0, 3)
+        setRelatedResources(filtered)
+      }
+    } catch (error) {
+      console.error('Error fetching related resources:', error)
+    }
+  }
 
   // Function to fetch OG image
   const fetchOGImage = async (resourceId: string, url: string) => {
@@ -156,161 +180,280 @@ const ResourceDetailsPage = () => {
   }
 
   return (
-    <div className="min-h-screen py-8">
-      <div className="w-11/12 md:w-8/12 mx-auto space-y-8">
-        {/* Back Button */}
-        <Button variant="ghost" onClick={() => router.back()} className="mb-4">
-          <ArrowLeft className="size-4 mr-2" />
-          Back
-        </Button>
+    <div className="min-h-screen bg-gray-50">
+      {/* Header */}
+      <div className="bg-white border-b">
+        <div className="max-w-6xl mx-auto px-4 py-4">
+          <Button variant="ghost" onClick={() => router.back()} className="mb-2">
+            <ArrowLeft className="size-4 mr-2" />
+            Back
+          </Button>
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <span>Indian Prison Portal</span>
+            <span>/</span>
+            <span>Resources</span>
+            <span>/</span>
+            <span className="text-foreground">{resource.title}</span>
+          </div>
+        </div>
+      </div>
 
-        {/* Main Content */}
-        <Card className="overflow-hidden">
-          <CardContent className="p-0">
-            {/* Hero Image */}
-            {(resource.image || ogImage || imageLoading) && (
-              <div className="relative h-64 md:h-96 w-full">
-                {imageLoading && !imageError && (
-                  <div className="absolute inset-0 bg-muted animate-pulse"></div>
-                )}
-                
-                {(resource.image || ogImage) && !imageError && (
-                  <Image
-                    src={resource.image || ogImage || ''}
-                    alt={resource.title}
-                    fill
-                    className="object-cover"
-                    priority
-                    sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
-                    onLoad={() => setImageLoading(false)}
-                    onError={() => {
-                      setImageError(true)
-                      setImageLoading(false)
-                    }}
-                  />
-                )}
-                
-                <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
-                <div className="absolute bottom-4 left-4 right-4">
-                  <Badge variant="secondary" className="mb-2">
-                    {resource.type || resource.sourceType || 'Resource'}
-                  </Badge>
-                  <h1 className={`${instrument_serif.className} text-2xl md:text-4xl font-light text-white mb-2`}>
-                    {resource.title}
-                  </h1>
-                </div>
-              </div>
-            )}
-
-            {/* Content */}
-            <div className="p-6 md:p-8 space-y-6">
-              {/* Title (if no image) */}
-              {!resource.image && !ogImage && !imageLoading && (
-                <div>
+      <div className="max-w-6xl mx-auto px-4 py-8">
+        <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
+          {/* Main Content */}
+          <div className="lg:col-span-3">
+            <Card className="bg-white">
+              <CardContent className="p-8">
+                {/* Header */}
+                <div className="mb-6">
                   <Badge variant="secondary" className="mb-4">
                     {resource.type || resource.sourceType || 'Resource'}
                   </Badge>
-                  <h1 className={`${instrument_serif.className} text-3xl md:text-5xl font-light text-brand-primary-900 mb-4`}>
+                  <h1 className={`${instrument_serif.className} text-3xl md:text-4xl font-normal text-gray-900 mb-4 leading-tight`}>
                     {resource.title}
                   </h1>
-                </div>
-              )}
-
-              {/* Metadata */}
-              <div className="flex flex-wrap gap-4 text-sm text-muted-foreground">
-                {resource.authors && (
-                  <div className="flex items-center gap-2">
-                    <User className="size-4" />
-                    <span>{resource.authors}</span>
-                  </div>
-                )}
-                <div className="flex items-center gap-2">
-                  <Calendar className="size-4" />
-                  <span>{resource.date}</span>
-                </div>
-                {resource.location && (
-                  <div className="flex items-center gap-2">
-                    <MapPin className="size-4" />
-                    <span>{resource.location}</span>
-                  </div>
-                )}
-              </div>
-
-              <Separator />
-
-              {/* Summary */}
-              <div>
-                <h2 className="text-xl font-semibold mb-3">Summary</h2>
-                <p className="text-muted-foreground leading-relaxed">
-                  {resource.summary}
-                </p>
-              </div>
-
-              {/* Tags */}
-              {resource.tags && resource.tags.length > 0 && (
-                <div>
-                  <h3 className="text-lg font-medium mb-3 flex items-center gap-2">
-                    <Tag className="size-4" />
-                    Tags
-                  </h3>
-                  <div className="flex flex-wrap gap-2">
-                    {resource.tags.map((tag, index) => (
-                      <Badge key={index} variant="outline" className="cursor-pointer hover:bg-muted">
-                        {tag}
-                      </Badge>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Theme */}
-              {resource.theme && (
-                <div>
-                  <h3 className="text-lg font-medium mb-2">Theme</h3>
-                  <Badge variant="secondary">{resource.theme}</Badge>
-                </div>
-              )}
-
-              {/* Source Information */}
-              <div className="bg-muted/30 rounded-lg p-4">
-                <div className="flex items-center gap-3 mb-3">
-                  <Avatar className="size-10">
-                    <AvatarImage src="https://github.com/evilrabbit.jpg" alt="Source" />
-                    <AvatarFallback>{(resource.source || 'S').charAt(0)}</AvatarFallback>
-                  </Avatar>
-                  <div>
-                    <p className="font-medium">{resource.source}</p>
-                    {resource.sourcePlatform && (
-                      <p className="text-sm text-muted-foreground">{resource.sourcePlatform}</p>
+                  
+                  {/* Metadata */}
+                  <div className="flex flex-wrap gap-4 text-sm text-gray-600 mb-6">
+                    {resource.authors && (
+                      <div className="flex items-center gap-2">
+                        <User className="size-4" />
+                        <span>{resource.authors}</span>
+                      </div>
+                    )}
+                    <div className="flex items-center gap-2">
+                      <Calendar className="size-4" />
+                      <span>{resource.date}</span>
+                    </div>
+                    {resource.location && (
+                      <div className="flex items-center gap-2">
+                        <MapPin className="size-4" />
+                        <span>{resource.location}</span>
+                      </div>
                     )}
                   </div>
                 </div>
 
-                {/* See Original Link Button */}
-                {resource.linkToOriginalSource && (
-                  <Link 
-                    href={resource.linkToOriginalSource} 
-                    target="_blank" 
-                    rel="noopener noreferrer"
-                  >
-                    <Button className="w-full" size="lg">
-                      <ExternalLink className="size-4 mr-2" />
-                      See Original Link
-                    </Button>
-                  </Link>
+                {/* Featured Image */}
+                {(resource.image || ogImage || imageLoading) && (
+                  <div className="mb-8">
+                    <div className="relative h-64 md:h-96 w-full rounded-lg overflow-hidden">
+                      {imageLoading && !imageError && (
+                        <div className="absolute inset-0 bg-muted animate-pulse"></div>
+                      )}
+                      
+                      {(resource.image || ogImage) && !imageError && (
+                        <Image
+                          src={resource.image || ogImage || ''}
+                          alt={resource.title}
+                          fill
+                          className="object-cover"
+                          priority
+                          sizes="(max-width: 768px) 100vw, (max-width: 1200px) 75vw, 60vw"
+                          onLoad={() => setImageLoading(false)}
+                          onError={() => {
+                            setImageError(true)
+                            setImageLoading(false)
+                          }}
+                        />
+                      )}
+                    </div>
+                  </div>
                 )}
-              </div>
 
-              {/* Keywords */}
-              {resource.keywords && (
-                <div>
-                  <h3 className="text-lg font-medium mb-2">Keywords</h3>
-                  <p className="text-sm text-muted-foreground">{resource.keywords}</p>
+                {/* Summary */}
+                <div className="mb-8">
+                  <h2 className="text-xl font-semibold mb-4 text-gray-900">Summary</h2>
+                  <div className="prose prose-gray max-w-none">
+                    <p className="text-gray-700 leading-relaxed text-base">
+                      {resource.summary}
+                    </p>
+                  </div>
                 </div>
-              )}
+
+                {/* Key Findings Section */}
+                <div className="mb-8 p-6 bg-blue-50 rounded-lg border-l-4 border-blue-500">
+                  <h3 className="text-lg font-semibold mb-3 text-blue-900">Key Findings</h3>
+                  <div className="text-blue-800">
+                    <p>This resource provides valuable insights into {resource.theme?.toLowerCase() || 'prison reform'} and contributes to the broader understanding of correctional practices and policies.</p>
+                  </div>
+                </div>
+
+                {/* Tags */}
+                {resource.tags && resource.tags.length > 0 && (
+                  <div className="mb-8">
+                    <h3 className="text-lg font-semibold mb-3 text-gray-900">Tags</h3>
+                    <div className="flex flex-wrap gap-2">
+                      {resource.tags.map((tag, index) => (
+                        <Badge key={index} variant="outline" className="cursor-pointer hover:bg-gray-100">
+                          {tag}
+                        </Badge>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Source Link */}
+                {resource.linkToOriginalSource && (
+                  <div className="mb-8">
+                    <Link 
+                      href={resource.linkToOriginalSource} 
+                      target="_blank" 
+                      rel="noopener noreferrer"
+                    >
+                      <Button className="bg-blue-600 hover:bg-blue-700">
+                        <ExternalLink className="size-4 mr-2" />
+                        View Original Source
+                      </Button>
+                    </Link>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Sidebar */}
+          <div className="lg:col-span-1">
+            <Card className="bg-white mb-6">
+              <CardContent className="p-6">
+                <h3 className="font-semibold mb-4 text-gray-900">Resource Details</h3>
+                
+                <div className="space-y-4">
+                  <div>
+                    <Label className="text-sm font-medium text-gray-600">Source</Label>
+                    <p className="text-sm text-gray-900 mt-1">{resource.source}</p>
+                  </div>
+                  
+                  {resource.theme && (
+                    <div>
+                      <Label className="text-sm font-medium text-gray-600">Theme</Label>
+                      <Badge variant="secondary" className="mt-1">{resource.theme}</Badge>
+                    </div>
+                  )}
+                  
+                  <div>
+                    <Label className="text-sm font-medium text-gray-600">Type</Label>
+                    <p className="text-sm text-gray-900 mt-1">{resource.type || resource.sourceType || 'Resource'}</p>
+                  </div>
+                  
+                  {resource.keywords && (
+                    <div>
+                      <Label className="text-sm font-medium text-gray-600">Keywords</Label>
+                      <p className="text-sm text-gray-700 mt-1">{resource.keywords}</p>
+                    </div>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Author Info */}
+            <Card className="bg-white">
+              <CardContent className="p-6">
+                <h3 className="font-semibold mb-4 text-gray-900">About the Source</h3>
+                <div className="flex items-center gap-3 mb-3">
+                  <Avatar className="size-12">
+                    <AvatarImage src="https://github.com/evilrabbit.jpg" alt="Source" />
+                    <AvatarFallback className="bg-blue-100 text-blue-700">
+                      {(resource.source || 'S').charAt(0)}
+                    </AvatarFallback>
+                  </Avatar>
+                  <div>
+                    <p className="font-medium text-gray-900">{resource.source}</p>
+                    {resource.sourcePlatform && (
+                      <p className="text-sm text-gray-600">{resource.sourcePlatform}</p>
+                    )}
+                  </div>
+                </div>
+                <p className="text-sm text-gray-600">
+                  Trusted source providing research and insights on prison reform and correctional practices.
+                </p>
+              </CardContent>
+            </Card>
+          </div>
+        </div>
+
+        {/* Related Resources Section */}
+        {relatedResources.length > 0 && (
+          <div className="mt-12">
+            <h2 className="text-2xl font-bold mb-6 text-gray-900">Related Resources</h2>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              {relatedResources.map((relatedResource, index) => (
+                <Link key={relatedResource.id || index} href={`/resource/${relatedResource.id || encodeURIComponent(relatedResource.title)}`}>
+                  <Card className="bg-white hover:shadow-lg transition-shadow duration-200 h-full">
+                    <CardContent className="p-0 relative group overflow-hidden">
+                      <div className="h-48 w-full overflow-hidden">
+                        {relatedResource.image ? (
+                          <Image 
+                            src={relatedResource.image} 
+                            alt={relatedResource.title} 
+                            width={400} 
+                            height={200} 
+                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
+                            onError={(e) => {
+                              const target = e.target as HTMLImageElement;
+                              target.src = "/Rules1.png";
+                            }}
+                          />
+                        ) : (
+                          <Image 
+                            src="/Rules1.png" 
+                            alt="Default" 
+                            width={400} 
+                            height={200} 
+                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200" 
+                          />
+                        )}
+                      </div>
+                      
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-200" />
+                      
+                      <div className="absolute top-4 left-4 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                        <Badge variant="secondary" className="text-xs">
+                          <FileText className="size-3 mr-1" />
+                          {relatedResource.type || 'Resource'}
+                        </Badge>
+                      </div>
+                      
+                      <div className="absolute bottom-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                        <div className="flex gap-2">
+                          <Button size="sm" variant="secondary" className="rounded-full bg-white/90 hover:bg-white">
+                            <Bookmark className="size-3" />
+                          </Button>
+                          <Button size="sm" variant="secondary" className="rounded-full bg-white/90 hover:bg-white">
+                            <Send className="size-3" />
+                          </Button>
+                        </div>
+                      </div>
+                    </CardContent>
+                    
+                    <CardFooter className="p-4">
+                      <div className="w-full">
+                        <div className="flex items-center gap-2 mb-2">
+                          <Badge variant="outline" className="text-xs">
+                            {relatedResource.theme || 'General'}
+                          </Badge>
+                        </div>
+                        <h3 className="font-semibold text-gray-900 line-clamp-2 mb-2 leading-tight">
+                          {relatedResource.title}
+                        </h3>
+                        <div className="flex items-center gap-2 text-xs text-gray-600">
+                          <Avatar className="size-4">
+                            <AvatarFallback className="text-xs bg-gray-100">
+                              {(relatedResource.authors || relatedResource.source || 'A').charAt(0)}
+                            </AvatarFallback>
+                          </Avatar>
+                          <span>{relatedResource.source}</span>
+                          <Sparkle className="size-3" />
+                          <span>{relatedResource.date}</span>
+                        </div>
+                      </div>
+                    </CardFooter>
+                  </Card>
+                </Link>
+              ))}
             </div>
-          </CardContent>
-        </Card>
+          </div>
+        )}
       </div>
     </div>
   )
