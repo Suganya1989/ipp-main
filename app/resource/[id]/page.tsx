@@ -10,7 +10,7 @@ import { Instrument_Serif } from 'next/font/google'
 import Image from 'next/image'
 import Link from 'next/link'
 import { useParams, useRouter } from 'next/navigation'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
 const instrument_serif = Instrument_Serif({
   subsets: ["latin"],
@@ -63,9 +63,6 @@ const ResourceDetailsPage = () => {
         
         // Reset image states when new resource loads
         setImageLoading(data.resource.image ? true : false)
-        setImageError(false)
-        setOgImage(null)
-        
         // Fetch OG image if resource has linkToOriginalSource but no image
         if (data.resource.linkToOriginalSource && !data.resource.image) {
           setImageLoading(true)
@@ -92,6 +89,49 @@ const ResourceDetailsPage = () => {
 
     fetchResource()
   }, [params.id])
+
+  // Track processed related resources to avoid duplicate OG fetches
+  const processedRelated = useRef<Set<string | undefined>>(new Set())
+
+  // Fetch OG images for related resources after they are loaded
+  useEffect(() => {
+    const toProcess = relatedResources.filter((item) => {
+      const key = item.id || item.title
+      return (
+        !!key &&
+        !processedRelated.current.has(key) &&
+        !item.image &&
+        !!item.linkToOriginalSource &&
+        item.linkToOriginalSource.startsWith('http')
+      )
+    })
+
+    if (toProcess.length === 0) return
+
+    toProcess.forEach(async (item) => {
+      const key = item.id || item.title
+      if (!key) return
+      processedRelated.current.add(key)
+      try {
+        const resp = await fetch('/api/og-image-async', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ resourceId: item.id, url: item.linkToOriginalSource })
+        })
+        if (!resp.ok) return
+        const ogData = await resp.json()
+        if (ogData?.ogImage && typeof ogData.ogImage === 'string' && !ogData.ogImage.startsWith('/')) {
+          setRelatedResources((prev) => prev.map((r) =>
+            (r.id && ogData.resourceId && r.id === ogData.resourceId)
+              ? { ...r, image: ogData.ogImage }
+              : r
+          ))
+        }
+      } catch {
+        // ignore
+      }
+    })
+  }, [relatedResources])
 
   // Function to fetch related resources
   const fetchRelatedResources = async (theme: string, currentResourceId: string) => {
