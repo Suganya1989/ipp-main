@@ -21,7 +21,7 @@ const instrument_serif = Instrument_Serif({
 export default function Home() {
 
   const [searchQuery, setSearchQuery] = useState("")
-  const [trending, setTrending] = useState<{ name: string; count: number; href?: string }[]>([])
+  const [trendingTags, setTrendingTags] = useState<{ name: string; count: number }[]>([])
   const router = useRouter()
 
   const handleSearch = () => {
@@ -33,9 +33,19 @@ export default function Home() {
 
   useEffect(() => {
     let mounted = true
-    fetch('/api/themes')
+    // Fetch trending keywords/tags and deduplicate by name
+    fetch('/api/tags')
       .then(r => r.json())
-      .then(j => { if (mounted) setTrending(Array.isArray(j.data) ? j.data : []) })
+      .then(j => {
+        if (!mounted) return
+        const list: { name: string; count: number }[] = Array.isArray(j.data) ? j.data : []
+        const map = new Map<string, { name: string; count: number }>()
+        for (const t of list) {
+          const key = (t.name || '').toLowerCase()
+          if (!map.has(key)) map.set(key, t)
+        }
+        setTrendingTags(Array.from(map.values()))
+      })
       .catch(() => {})
     return () => { mounted = false }
   }, [])
@@ -66,20 +76,20 @@ export default function Home() {
             </button>
           </div>
         </div>
-        {/* Trending section */}
+        {/* Trending keywords only */}
         <div className="flex flex-col md:flex-row md:items-center gap-3.5">
           <div className="flex items-center gap-2 text-gray-600">
             <span className="font-medium">🔥 Trending:</span>
           </div>
           <div className="flex flex-wrap items-center gap-2 md:gap-3">
-            {trending.slice(0,6).map((t) => (
+            {trendingTags.slice(0,12).map((t) => (
               <Badge
                 key={t.name}
                 variant="secondary"
                 className="px-3 py-1 rounded-full cursor-pointer"
                 onClick={() => router.push(`/topics?theme=${encodeURIComponent(t.name)}`)}
               >
-                {t.name}
+                {`${(t.name || '').charAt(0).toUpperCase()}${(t.name || '').slice(1)}`}
               </Badge>
             ))}
           </div>
