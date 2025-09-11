@@ -4,11 +4,11 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardFooter } from '@/components/ui/card'
 import { Label } from '@/components/ui/label'
-import { Separator } from '@/components/ui/separator'
-import { Bookmark, BookOpen, FileText, Pencil, Send, Sparkle, Sparkles, Zap } from 'lucide-react'
+import { Bookmark, BookOpen, Pencil, Send, Sparkle, Sparkles, Zap } from 'lucide-react'
 import Image from 'next/image'
 import Link from 'next/link'
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
+import { pageCache } from '@/lib/cache'
 
 type Resource = {
   id?: string;
@@ -28,95 +28,95 @@ const Featured = () => {
   const [items, setItems] = useState<Resource[]>([])
   const [loading, setLoading] = useState(true)
 
+  const fetchImage = useCallback(async (item: Resource) => {
+    if (!item?.linkToOriginalSource) return
+    
+    try {
+      const response = await fetch('/api/og-image-async', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          resourceId: item.id,
+          url: item.linkToOriginalSource
+        })
+      })
+      
+      const ogData = await response.json()
+      if (ogData.ogImage && !ogData.ogImage.startsWith('/')) {
+        setItems(prevItems => 
+          prevItems.map(prevItem => 
+            prevItem.id === ogData.resourceId 
+              ? { ...prevItem, image: ogData.ogImage }
+              : prevItem
+          )
+        )
+      }
+    } catch (error) {
+      console.error('Failed to fetch OG image:', error)
+    }
+  }, [])
+
   useEffect(() => {
     let mounted = true
-    fetch(`/api/featured?limit=4`).then(r => r.json()).then((j) => {
-      if (!mounted) return
-      const featuredData = j.data || []
-      
-      // Set initial items with fallback images for immediate display
-      const initialItems = featuredData.map((item: Resource, index: number) => ({
-        ...item,
-        image: item.image || (index === 0 ? '/Podcast1.png' : index === 1 ? '/Rules1.png' : '/Podcast2.jpg')
-      }))
-      
-      setItems(initialItems)
-      
-      // Asynchronously fetch OG images without blocking the UI
-      initialItems.forEach((item: Resource) => {
-        if (item.linkToOriginalSource && item.linkToOriginalSource.startsWith('http')) {
-          fetch('/api/og-image-async', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              resourceId: item.id,
-              url: item.linkToOriginalSource
-            })
-          })
-          .then(res => res.json())
-          .then(ogData => {
-            if (mounted && ogData.ogImage) {
-              setItems(prevItems => 
-                prevItems.map(prevItem => 
-                  prevItem.id === ogData.resourceId 
-                    ? { ...prevItem, image: ogData.ogImage }
-                    : prevItem
-                )
-              )
+    
+    async function load() {
+      try {
+        // Check cache first
+        const cacheKey = 'featured-data'
+        const cachedData = pageCache.get(cacheKey) as Resource[] | null
+
+        if (cachedData && mounted) {
+          console.log('[Featured] Using cached data')
+          setItems(cachedData)
+          setLoading(false)
+          
+          // Fetch images for all items
+          cachedData.forEach((item: Resource) => {
+            if (item?.linkToOriginalSource) {
+              fetchImage(item)
             }
           })
-          .catch(() => {
-            // Silently fail - keep fallback image
-          })
+          return
         }
-      })
-    }).catch(() => {
-      // Fallback to static content
-      if (mounted) {
-        setItems([
-          {
-            title: "Prison Reform Initiative",
-            summary: "Comprehensive analysis of prison reform policies",
-            type: "Report",
-            source: "Ministry of Justice",
-            date: new Date().toLocaleDateString(),
-            image: "/Podcast1.png",
-            theme: "Reform"
-          },
-          {
-            title: "Rehabilitation Programs",
-            summary: "Study on effective rehabilitation methods",
-            type: "Research",
-            source: "Prison Research Institute",
-            date: new Date().toLocaleDateString(),
-            image: "/Rules1.png",
-            theme: "Rehabilitation"
-          },
-          {
-            title: "Prison Management Guidelines",
-            summary: "Updated guidelines for prison administration",
-            type: "Guidelines",
-            source: "Prison Authority",
-            date: new Date().toLocaleDateString(),
-            image: "/Podcast2.jpg",
-            theme: "Management"
-          },
-          {
-            title: "Prisoner Rights Documentation",
-            summary: "Legal framework for prisoner rights",
-            type: "Legal",
-            source: "Legal Affairs",
-            date: new Date().toLocaleDateString(),
-            image: "/Podcast1.png",
-            theme: "Rights"
+
+        const response = await fetch(`/api/featured?limit=4`)
+        const j = await response.json()
+        
+        if (!mounted) return
+        
+        const featuredData = j.data || []
+        console.log(featuredData)
+        const initialItems = featuredData.map((item: Resource) => ({
+          ...item,
+          image: item.image 
+        }))
+        
+        // Cache the data for 5 minutes
+        pageCache.set(cacheKey, initialItems, 300)
+        
+        setItems(initialItems)
+        setLoading(false)
+        
+        // Fetch images for all items
+        featuredData.forEach((item: Resource) => {
+          if (item?.linkToOriginalSource) {
+            fetchImage(item)
           }
-        ])
+        })
+      } catch (e) {
+        console.log("error occurred: " + e)
+        if (mounted) {
+          setLoading(false)
+        }
       }
-    }).finally(() => setLoading(false))
+    }
+    
+    load()
     return () => { mounted = false }
-  }, [])
+  }, [fetchImage])
+
 
   const featured = items[0]
   const trending = items.slice(1, 4)
@@ -129,7 +129,10 @@ const Featured = () => {
           <h3>Featured</h3>
         </div>
         <Link href={`/resource/${featured?.id || encodeURIComponent(featured?.title || '')}`}>
-          <Card className="border-0 shadow-none p-0">
+          <Card 
+            className="border-0 shadow-none p-0"
+            data-card-id={featured?.id || featured?.title}
+          >
             <CardContent className="p-0 relative group">
             {featured?.image ? (
               <Image 
@@ -213,7 +216,12 @@ const Featured = () => {
             </>
           )}
           {!loading && trending.map((t) => (
-            <Link key={t.id} href={`/resource/${t.id || encodeURIComponent(t.title)}`} className="flex items-center gap-3 md:gap-8 h-28 md:h-32">
+            <Link 
+              key={t.id} 
+              href={`/resource/${t.id || encodeURIComponent(t.title)}`} 
+              className="flex items-center gap-3 md:gap-8 h-28 md:h-32"
+              data-card-id={t.id || t.title}
+            >
               <div className="w-1/3 h-full">
                 {t.image ? (
                   <Image 
@@ -224,11 +232,16 @@ const Featured = () => {
                     className="w-full h-full rounded-md object-cover"
                     onError={(e) => {
                       const target = e.target as HTMLImageElement;
-                      target.src = "/Rules1.png";
+                      const parent = target.parentElement;
+                      if (parent) {
+                        parent.innerHTML = '<div class="w-full h-full rounded-md border-2 border-gray-200 bg-gray-50 flex items-center justify-center"><div class="text-gray-400 text-sm">Image unavailable</div></div>';
+                      }
                     }}
                   />
                 ) : (
-                  <Image src="/Rules1.png" alt="Default" width={400} height={400} className="w-full h-full rounded-md object-cover" />
+                  <div className="w-full h-full rounded-md border-2 border-gray-200 bg-gray-50 flex items-center justify-center">
+                    <div className="text-gray-400 text-sm">No image available</div>
+                  </div>
                 )}
               </div>
               <div className="space-y-2 w-3/5">

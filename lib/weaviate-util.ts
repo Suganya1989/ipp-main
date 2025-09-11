@@ -1,8 +1,34 @@
-import weaviate, { WeaviateClient, ObjectsBatcher, ApiKey } from 'weaviate-ts-client';
+import weaviate, { WeaviateClient, ApiKey } from 'weaviate-ts-client';
 
 
 // Lazily create and cache the Weaviate client with robust env handling
 let _client: WeaviateClient | null = null;
+let _schema: WeaviateSchema | null = null;
+let _schemaFields: string | null = null;
+
+// Cache schema and fields to avoid repeated fetches
+async function getSchemaFields(): Promise<string> {
+  if (_schemaFields) return _schemaFields;
+
+  try {
+    const client = getClient();
+    const schemaPromise = client.schema.getter().do();
+    const timeoutPromise = new Promise((_, reject) => 
+      setTimeout(() => reject(new Error('Schema fetch timeout')), 10000)
+    );
+    
+    _schema = await Promise.race([schemaPromise, timeoutPromise]) as WeaviateSchema;
+    const classSchema = _schema?.classes?.find((c) => c.class === 'Docs');
+    const properties = classSchema?.properties?.map((p) => p.name);
+    _schemaFields = properties?.join(' ') || '';
+    
+    return _schemaFields;
+  } catch (error) {
+    console.error('Error fetching schema:', error);
+    return '';
+  }
+}
+
 function getClient(): WeaviateClient {
   if (_client) return _client;
 
@@ -199,16 +225,10 @@ export async function getResourceByIdOrTitle(identifier: string): Promise<Prison
       // Prefer filtering by uuid; fall back to small batch search if unavailable
       let obj: unknown | undefined;
       try {
-        const schema = (await client.schema.getter().do()) as WeaviateSchema;
-
-    const classSchema = schema?.classes?.find((c) => c.class === 'Docs');
-    const properties = classSchema?.properties?.map((p) => p.name);
-
-    const fields=properties?.join(' ');
-    const fieldSelection = fields && fields.length > 0
-      ? `${fields} _additional { id }`
-      : `source_title summary sourceType keywords sourcePlatform authors dateOfPublication image linkToOriginalSource subTheme location theme _additional { id }`;
-   
+        const fields = await getSchemaFields();
+        const fieldSelection = fields && fields.length > 0
+          ? `${fields} _additional { id }`
+          : `source_title summary sourceType keywords sourcePlatform authors dateOfPublication image linkToOriginalSource subTheme location theme _additional { id }`;
         const res = await client.graphql
           .get()
           .withClassName('Docs')
@@ -223,7 +243,8 @@ export async function getResourceByIdOrTitle(identifier: string): Promise<Prison
         const typedRes = res as WeaviateGetResponse;
         const hits = (typedRes.data?.Get?.Docs ?? []) as unknown[];
         obj = hits[0];
-      } catch (error) {
+      } catch {
+        // Ignore errors and continue
       }
       if (obj) {
         return mapWeaviateItemToPrisonResource(obj, 0);
@@ -234,10 +255,7 @@ export async function getResourceByIdOrTitle(identifier: string): Promise<Prison
       // Non-UUID identifier - search by title using BM25
       try {
         const client = getClient();
-        const schema = (await client.schema.getter().do()) as WeaviateSchema;
-        const classSchema = schema?.classes?.find((c) => c.class === 'Docs');
-        const properties = classSchema?.properties?.map((p) => p.name);
-        const fields = properties?.join(' ');
+        const fields = await getSchemaFields();
         const fieldSelection = fields && fields.length > 0
           ? `${fields} _additional { id }`
           : `source_title summary sourceType keywords sourcePlatform authors dateOfPublication image linkToOriginalSource subTheme location theme _additional { id }`;
@@ -274,12 +292,7 @@ export async function getFeaturedResources(limit: number = 5): Promise<PrisonRes
   try {
     console.log("Get featured")
     const client = getClient();
-    const schema = await client.schema.getter().do() as WeaviateSchema;
-
-    const classSchema = schema?.classes?.find((c) => c.class === 'Docs');
-    const properties = classSchema?.properties?.map((p) => p.name);
-
-    const fields=properties?.join(' ');
+    const fields = await getSchemaFields();
     const fieldSelection = fields && fields.length > 0
       ? `${fields} _additional { id }`
       : `source_title summary sourceType keywords sourcePlatform authors dateOfPublication image linkToOriginalSource subTheme location theme _additional { id }`;
@@ -303,12 +316,7 @@ export async function getFeaturedResources(limit: number = 5): Promise<PrisonRes
 export async function searchResourcesByKeyword(query: string, limit: number = 5): Promise<PrisonResource[]> {
   try {
     const client = getClient();
-    const schema = await client.schema.getter().do() as WeaviateSchema;
-
-    const classSchema = schema?.classes?.find((c) => c.class === 'Docs');
-    const properties = classSchema?.properties?.map((p) => p.name);
-
-    const fields=properties?.join(' ');
+    const fields = await getSchemaFields();
     const fieldSelection = fields && fields.length > 0
       ? `${fields} _additional { id }`
       : `source_title summary sourceType keywords sourcePlatform authors dateOfPublication image linkToOriginalSource subTheme location theme _additional { id }`;
@@ -353,18 +361,8 @@ export async function searchResourcesWithFilters(
   limit: number = 20
 ): Promise<PrisonResource[]> {
   try {
-    
-    // Add timeout wrapper for schema call
     const client = getClient();
-    const schemaPromise = client.schema.getter().do();
-    const timeoutPromise = new Promise((_, reject) => 
-      setTimeout(() => reject(new Error('Schema fetch timeout')), 10000)
-    );
-    
-    const schema = await Promise.race([schemaPromise, timeoutPromise]) as WeaviateSchema;
-    const classSchema = schema?.classes?.find((c) => c.class === 'Docs');
-    const properties = classSchema?.properties?.map((p) => p.name);
-    const fields = properties?.join(' ');
+    const fields = await getSchemaFields();
     
     const fieldSelection = fields && fields.length > 0
       ? `${fields} _additional { id score }`
@@ -547,19 +545,8 @@ export async function searchResourcesWithFilters(
 export async function getResourcesByTheme(theme: string, limit: number = 5): Promise<PrisonResource[]> {
   try {
     console.log("Themed resources")
-    // Add timeout wrapper for schema call
     const client = getClient();
-    const schemaPromise = client.schema.getter().do();
-    const timeoutPromise = new Promise((_, reject) => 
-      setTimeout(() => reject(new Error('Schema fetch timeout')), 10000)
-    );
-    
-    const schema = await Promise.race([schemaPromise, timeoutPromise]) as WeaviateSchema;
-
-    const classSchema = schema?.classes?.find((c) => c.class === 'Docs');
-    const properties = classSchema?.properties?.map((p) => p.name);
-
-    const fields = properties?.join(' ');
+    const fields = await getSchemaFields();
     
     // Add timeout wrapper for GraphQL query
     const queryPromise = client.graphql
@@ -592,25 +579,18 @@ export async function getResourcesByTheme(theme: string, limit: number = 5): Pro
   }
 }
 
-
-
 // Fetch all resources and generate categories with counts
 export async function getCategories(): Promise<Category[]> {
   try {
     const client = getClient();
-    const schema = await client.schema.getter().do() as WeaviateSchema;
-
-    const classSchema = schema?.classes?.find((c) => c.class === 'Docs');
-    const properties = classSchema?.properties?.map((p) => p.name);
-
-    const fields=properties?.join(' ');
+    const fields = await getSchemaFields();
     const res = await client.graphql
       .get()
       .withClassName('Docs')
       .withFields(fields && fields.length > 0
         ? `${fields} _additional { id }`
         : `theme subTheme keywords _additional { id }`)
-      .withLimit(10)
+      .withLimit(1000) // Get a large number to capture all categories
       .do();
     type DocLite = { theme?: unknown; subTheme?: unknown; keywords?: unknown };
     const resources = ((res as WeaviateGetResponse)?.data?.Get?.Docs ?? []) as DocLite[];
@@ -657,12 +637,7 @@ export async function getCategories(): Promise<Category[]> {
 export async function getTagsWithCounts(): Promise<Category[]> {
   try {
     const client = getClient();
-    const schema = await client.schema.getter().do() as WeaviateSchema;
-
-    const classSchema = schema?.classes?.find((c) => c.class === 'Docs');
-    const properties = classSchema?.properties?.map((p) => p.name);
-
-    const fields = properties?.join(' ');
+    const fields = await getSchemaFields();
     const fieldSelection = fields && fields.length > 0
       ? `${fields} _additional { id }`
       : `keywords _additional { id }`;
@@ -715,12 +690,7 @@ export async function getTagsWithCounts(): Promise<Category[]> {
 export async function getThemesWithCounts(): Promise<Category[]> {
   try {
     const client = getClient();
-    const schema = await client.schema.getter().do() as WeaviateSchema;
-
-    const classSchema = schema?.classes?.find((c) => c.class === 'Docs');
-    const properties = classSchema?.properties?.map((p) => p.name);
-
-    const fields = properties?.join(' ');
+    const fields = await getSchemaFields();
     const fieldSelection = fields && fields.length > 0
       ? `${fields} _additional { id }`
       : `theme _additional { id }`;
@@ -730,7 +700,7 @@ export async function getThemesWithCounts(): Promise<Category[]> {
       .get()
       .withClassName('Docs')
       .withFields(fieldSelection)
-      .withLimit(1000) // Get a large number to capture all themes
+      .withLimit(10) // Get a large number to capture all themes
       .do();
 
     type DocLite = { theme?: unknown; properties?: { theme?: unknown } };

@@ -4,10 +4,11 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardFooter } from '@/components/ui/card'
 import { Label } from '@/components/ui/label'
-import { Bookmark, BookOpen, Pencil, Send, Sparkle } from 'lucide-react'
+import { Bookmark, BookOpen, ChevronLeft, ChevronRight, Pencil, Send, Sparkle } from 'lucide-react'
 import Image from 'next/image'
 import Link from 'next/link'
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
+import { pageCache } from '@/lib/cache'
 
 type Resource = {
   id?: string;
@@ -24,14 +25,73 @@ type Resource = {
 }
 
 const RulesAndFramework = () => {
+  const [allResources, setAllResources] = useState<Resource[]>([])
   const [resources, setResources] = useState<Resource[]>([])
   const [loading, setLoading] = useState(true)
   const [theme, setTheme] = useState<string>("")
+  const [currentIndex, setCurrentIndex] = useState(0)
+  const [hasMore, setHasMore] = useState(false)
+
+
+  const fetchImage = useCallback(async (item: Resource) => {
+      if (!item?.linkToOriginalSource) return
+      
+      try {
+        const response = await fetch('/api/og-image-async', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            resourceId: item.id,
+            url: item.linkToOriginalSource
+          })
+        })
+        
+        const ogData = await response.json()
+        if (ogData.ogImage && !ogData.ogImage.startsWith('/')) {
+          setResources((prevItems: Resource[]) => 
+            prevItems.map(prevItem => 
+              prevItem.id === ogData.resourceId 
+                ? { ...prevItem, image: ogData.ogImage }
+                : prevItem
+            )
+          )
+        }
+      } catch (error) {
+        console.error('Failed to fetch OG image:', error)
+      }
+    }, [])
 
   useEffect(() => {
     let mounted = true
     async function load() {
       try {
+        // Check cache first
+        const cacheKey = 'rules-framework-data'
+        const cachedData = pageCache.get(cacheKey) as {
+          allResources: Resource[]
+          theme: string
+        } | null
+
+        if (cachedData && mounted) {
+          console.log('[RulesAndFramework] Using cached data')
+          setAllResources(cachedData.allResources)
+          setTheme(cachedData.theme)
+          const currentPageResources = cachedData.allResources.slice(0, 2)
+          setResources(currentPageResources)
+          setHasMore(cachedData.allResources.length > 2)
+          setLoading(false)
+          
+          // Fetch images only for visible resources (first 2)
+          currentPageResources.forEach((resource: Resource) => {
+            if (resource?.linkToOriginalSource) {
+              fetchImage(resource)
+            }
+          })
+          return
+        }
+
         // 1) Fetch themes sorted by count (trending)
         const themesRes = await fetch('/api/themes')
         const themesJson = await themesRes.json()
@@ -42,12 +102,11 @@ const RulesAndFramework = () => {
         setTheme(nextTrending)
 
         if (nextTrending) {
-          // 2) Fetch two resources for that theme using the search API with a theme filter
-          const res = await fetch(`/api/search?themes=${encodeURIComponent(nextTrending)}&limit=2`)
+          // 2) Fetch resources for that theme using getResourcesByTheme
+          const res = await fetch(`/api/theme-resources?theme=${encodeURIComponent(nextTrending)}&limit=10`)
           const json = await res.json()
-          if (!mounted) return
-          
-          const resourceData = Array.isArray(json.data) ? json.data : []
+      
+          const resourceData = Array.isArray(json.resources) ? json.resources : []
           
           // Set initial resources without fallback images to allow OG images to show
           const initialResources = resourceData.map((item: Resource) => ({
@@ -55,37 +114,21 @@ const RulesAndFramework = () => {
             image: item.image || undefined
           }))
           
-          setResources(initialResources)
+          // Cache the data for 5 minutes
+          pageCache.set(cacheKey, {
+            allResources: initialResources,
+            theme: nextTrending
+          }, 300)
           
-          // Asynchronously fetch OG images without blocking the UI
-          initialResources.forEach((item: Resource) => {
-            if (item.linkToOriginalSource && item.linkToOriginalSource.startsWith('http')) {
-              fetch('/api/og-image-async', {
-                method: 'POST',
-                headers: {
-                  'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                  resourceId: item.id,
-                  url: item.linkToOriginalSource
-                })
-              })
-              .then(res => res.json())
-              .then(ogData => {
-                if (mounted && ogData.ogImage) {
-                  console.log('RulesAndFramework: OG image received for', ogData.resourceId, ogData.ogImage)
-                  setResources(prevResources => 
-                    prevResources.map(prevItem => 
-                      prevItem.id === ogData.resourceId 
-                        ? { ...prevItem, image: ogData.ogImage }
-                        : prevItem
-                    )
-                  )
-                }
-              })
-              .catch((error) => {
-                console.log('RulesAndFramework: OG image fetch failed for', item.linkToOriginalSource, error)
-              })
+          setAllResources(initialResources)
+          const currentPageResources = initialResources.slice(0, 2)
+          setResources(currentPageResources)
+          setHasMore(initialResources.length > 2)
+          
+          // Fetch images only for visible resources (first 2)
+          currentPageResources.forEach((resource: Resource) => {
+            if (resource?.linkToOriginalSource) {
+              fetchImage(resource)
             }
           })
         } else {
@@ -100,14 +143,68 @@ const RulesAndFramework = () => {
     }
     load()
     return () => { mounted = false }
-  }, [])
+  }, [fetchImage])
 
   const cards = resources.slice(0, 2)
 
+  const handleNext = () => {
+    const nextIndex = currentIndex + 2
+    const nextResources = allResources.slice(nextIndex, nextIndex + 2)
+    
+    if (nextResources.length > 0) {
+      setResources(nextResources)
+      setCurrentIndex(nextIndex)
+      setHasMore(allResources.length > nextIndex + 2)
+      
+      // Fetch images for newly visible resources
+      nextResources.forEach((resource: Resource) => {
+        if (resource?.linkToOriginalSource) {
+          fetchImage(resource)
+        }
+      })
+    } else {
+      setHasMore(false)
+    }
+  }
+
+  const handlePrevious = () => {
+    const prevIndex = currentIndex - 2
+    if (prevIndex >= 0) {
+      const prevResources = allResources.slice(prevIndex, prevIndex + 2)
+      
+      setResources(prevResources)
+      setCurrentIndex(prevIndex)
+      setHasMore(allResources.length > prevIndex + 2)
+      // OG images will be loaded automatically by Intersection Observer
+    }
+  }
+
   return (
     <div className="w-11/12 md:w-10/12 flex flex-col items-center justify-center space-y-6">
-      <div className="flex items-center gap-1 text-muted-foreground w-full">
+      <div className="flex items-center justify-between text-muted-foreground w-full">
         <h3 className="font-medium text-lg">{theme || 'Rules, Standards, and International Frameworks'}</h3>
+        <div className="flex items-center gap-2">
+          {currentIndex > 0 && (
+            <Button 
+              onClick={handlePrevious}
+              variant="outline" 
+              size="sm"
+              className="flex items-center hover:bg-brand-secondary-50 border-brand-secondary-200"
+            >
+              <ChevronLeft className="w-4 h-4" />
+            </Button>
+          )}
+          {hasMore && (
+            <Button 
+              onClick={handleNext}
+              variant="outline" 
+              size="sm"
+              className="flex items-center hover:bg-brand-secondary-50 border-brand-secondary-200"
+            >
+              <ChevronRight className="w-4 h-4" />
+            </Button>
+          )}
+        </div>
       </div>
 
       <section className="flex flex-col gap-6 md:gap-0 md:flex-row w-full justify-between h-fit">
@@ -134,7 +231,7 @@ const RulesAndFramework = () => {
         )}
         {!loading && cards.map((item, index) => (
           <Link key={item.id || index} href={`/resource/${item.id || encodeURIComponent(item.title)}`} className="block w-full md:w-5/12">
-            <Card className="border-0 shadow-none p-0 h-fit md:h-96 w-full">
+            <Card className="border-0 shadow-none p-0 h-fit md:h-96 w-full" data-card-id={item.id || item.title}>
               <CardContent className="p-0 relative group overflow-hidden h-full w-full">
                 {item.image ? (
                   <Image 

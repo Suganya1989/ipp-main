@@ -5,7 +5,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardFooter } from '@/components/ui/card'
 import { Label } from '@/components/ui/label'
-import { ArrowLeft, Calendar, ExternalLink, MapPin, User, FileText, Bookmark, Pencil, Send, Sparkle } from 'lucide-react'
+import { ArrowLeft, Calendar, ExternalLink, MapPin, User, FileText, Bookmark, Send, Sparkle } from 'lucide-react'
 import { Instrument_Serif } from 'next/font/google'
 import Image from 'next/image'
 import Link from 'next/link'
@@ -234,29 +234,27 @@ const ResourceDetailsPage = () => {
                   </div>
                 </div>
 
-                {/* Featured Image */}
-                {(resource.image || ogImage || imageLoading) && (
+                {/* Featured Image - Only show if we have a real external image */}
+                {(resource.image || ogImage) && !imageError && !resource.image?.startsWith('/') && !ogImage?.startsWith('/') && (
                   <div className="mb-8">
                     <div className="relative h-64 md:h-96 w-full rounded-lg overflow-hidden">
-                      {imageLoading && !imageError && (
+                      {imageLoading && (
                         <div className="absolute inset-0 bg-muted animate-pulse"></div>
                       )}
                       
-                      {(resource.image || ogImage) && !imageError && (
-                        <Image
-                          src={resource.image || ogImage || ''}
-                          alt={resource.title}
-                          fill
-                          className="object-cover"
-                          priority
-                          sizes="(max-width: 768px) 100vw, (max-width: 1200px) 75vw, 60vw"
-                          onLoad={() => setImageLoading(false)}
-                          onError={() => {
-                            setImageError(true)
-                            setImageLoading(false)
-                          }}
-                        />
-                      )}
+                      <Image
+                        src={resource.image || ogImage || ''}
+                        alt={resource.title}
+                        fill
+                        className="object-cover"
+                        priority
+                        sizes="(max-width: 768px) 100vw, (max-width: 1200px) 75vw, 60vw"
+                        onLoad={() => setImageLoading(false)}
+                        onError={() => {
+                          setImageError(true)
+                          setImageLoading(false)
+                        }}
+                      />
                     </div>
                   </div>
                 )}

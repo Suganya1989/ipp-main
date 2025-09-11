@@ -5,8 +5,8 @@ import OverCrowding from "@/components/OverCrowding";
 import PodcastCards from "@/components/PodcastCards";
 import RulesAndFramework from "@/components/RulesAndFramework";
 import ShareCard from "@/components/ShareCard";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
 import { Lightbulb } from "lucide-react";
 import { Instrument_Serif } from "next/font/google";
 import { useRouter } from "next/navigation";
@@ -66,25 +66,18 @@ export default function Home() {
             </button>
           </div>
         </div>
-        {/* Trending section */}
-        <div className="flex flex-col md:flex-row md:items-center gap-3.5">
-          <div className="flex items-center gap-2 text-gray-600">
-            {/* <TrendingUp className="size-5 text-orange-500" strokeWidth={1.5} /> */}
-            <span className="font-medium">🔥 Trending:</span>
-          </div>
-          <div className="flex flex-wrap gap-1.5 md:gap-3">
-            {trending.slice(0,5).map((t) => (
-              <Button
-                key={t.name}
-                variant="outline"
-                size="sm"
-                className="rounded-full px-4 text-muted-foreground shadow-none"
-                onClick={() => router.push(`/topics?theme=${encodeURIComponent(t.name)}`)}
-              >
-                {t.name}
-              </Button>
-            ))}
-          </div>
+        {/* Trending tags */}
+        <div className="flex flex-wrap items-center gap-2 md:gap-3">
+          {trending.slice(0,6).map((t) => (
+            <Badge
+              key={t.name}
+              variant="secondary"
+              className="px-3 py-1 rounded-full cursor-pointer"
+              onClick={() => router.push(`/topics?theme=${encodeURIComponent(t.name)}`)}
+            >
+              {t.name}
+            </Badge>
+          ))}
         </div>
       </div>
       <Featured />

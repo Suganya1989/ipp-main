@@ -4,6 +4,8 @@ import { NextResponse } from 'next/server'
 const ogImageCache = new Map<string, { image: string; timestamp: number }>()
 const CACHE_DURATION = 24 * 60 * 60 * 1000 // 24 hours in milliseconds
 
+// Fallback image function
+
 export async function POST(request: Request) {
   let resourceId: string | undefined
   try {
@@ -40,7 +42,13 @@ export async function POST(request: Request) {
     try {
       const response = await fetch(targetUrl.toString(), {
         headers: {
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+          'Accept-Language': 'en-US,en;q=0.5',
+          'Accept-Encoding': 'gzip, deflate, br',
+          'DNT': '1',
+          'Connection': 'keep-alive',
+          'Upgrade-Insecure-Requests': '1'
         },
         signal: controller.signal
       })
@@ -49,21 +57,40 @@ export async function POST(request: Request) {
 
       if (!response.ok) {
         console.log(`Failed to fetch URL ${url}: ${response.status} ${response.statusText}`)
+        // Only use fallback for actual errors, not for bot protection
+        if (response.status === 403 || response.status === 503) {
+        
+          return NextResponse.json({ resourceId, ogImage: null })
+        }
         return NextResponse.json({ resourceId, ogImage: null })
       }
 
       const html = await response.text()
+      console.log(`[OG-API] Successfully fetched HTML for ${url}, length: ${html.length}`)
       
-      // Extract OG image using regex
-      const ogImageRegex = /<meta\s+(?:property="og:image"[^>]*content="([^"]*)"[^>]*|content="([^"]*)"[^>]*property="og:image"[^>]*)/i
-      const twitterImageRegex = /<meta\s+(?:name="twitter:image"[^>]*content="([^"]*)"[^>]*|content="([^"]*)"[^>]*name="twitter:image"[^>]*)/i
+      // Extract OG image using more flexible regex patterns
+      const ogImageRegex = /<meta[^>]*(?:property=["']og:image["'][^>]*content=["']([^"']*)["']|content=["']([^"']*)["'][^>]*property=["']og:image["'])[^>]*>/i
+      const twitterImageRegex = /<meta[^>]*(?:name=["']twitter:image["'][^>]*content=["']([^"']*)["']|content=["']([^"']*)["'][^>]*name=["']twitter:image["'])[^>]*>/i
+      
+      // Additional patterns for different formats
+      const ogImageRegex2 = /<meta\s+property=["']og:image["']\s+content=["']([^"']*)["']/i
+      const ogImageRegex3 = /<meta\s+content=["']([^"']*)["']\s+property=["']og:image["']/i
       
       let ogImage = ''
       
-      // Try OG image first
-      const ogMatch = html.match(ogImageRegex)
+      // Try OG image with multiple patterns
+      let ogMatch = html.match(ogImageRegex)
+      if (!ogMatch) ogMatch = html.match(ogImageRegex2)
+      if (!ogMatch) ogMatch = html.match(ogImageRegex3)
+      
       if (ogMatch) {
         ogImage = ogMatch[1] || ogMatch[2]
+        console.log(`[OG-API] Found OG image: ${ogImage}`)
+      } else {
+        console.log(`[OG-API] No OG image meta tag found with any pattern`)
+        // Debug: show a sample of meta tags
+        const metaTags = html.match(/<meta[^>]*>/gi)?.slice(0, 5) || []
+        console.log(`[OG-API] Sample meta tags:`, metaTags)
       }
       
       // Fallback to Twitter image
@@ -71,6 +98,9 @@ export async function POST(request: Request) {
         const twitterMatch = html.match(twitterImageRegex)
         if (twitterMatch) {
           ogImage = twitterMatch[1] || twitterMatch[2]
+          console.log(`[OG-API] Found Twitter image: ${ogImage}`)
+        } else {
+          console.log(`[OG-API] No Twitter image meta tag found`)
         }
       }
 
@@ -83,6 +113,7 @@ export async function POST(request: Request) {
             ogImage = new URL(ogImage, targetUrl.toString()).toString()
           } catch {
             console.log(`Invalid relative OG image URL: ${ogImage}`)
+          
             return NextResponse.json({ resourceId, ogImage: null })
           }
         } else if (ogImage.startsWith('//')) {
@@ -97,10 +128,12 @@ export async function POST(request: Request) {
           return NextResponse.json({ resourceId, ogImage })
         } catch {
           console.log(`Invalid OG image URL format: ${ogImage}`)
+          
           return NextResponse.json({ resourceId, ogImage: null })
         }
       }
 
+      // No OG image found, use fallback=
       return NextResponse.json({ resourceId, ogImage: null })
 
     } catch (error: unknown) {
