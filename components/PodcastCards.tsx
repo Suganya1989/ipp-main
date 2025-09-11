@@ -30,6 +30,12 @@ type Resource = {
   themeCategory?: string;
 }
 
+// Cache entry shape for podcast data
+type PodcastCacheEntry = {
+  allPodcastItems: Resource[];
+  themeName: string;
+}
+
 interface PodcastCardsProps {
   startIndex?: number;
 }
@@ -79,7 +85,7 @@ const PodcastCards = ({ startIndex = 0 }: PodcastCardsProps) => {
       try {
         // Check cache first
         const cacheKey = `podcast-data-${startIndex}`
-        const cachedData = pageCache.get(cacheKey) as Resource[] | null
+        const cachedData = pageCache.get(cacheKey) as PodcastCacheEntry | null
 
         if (cachedData && mounted) {
           console.log('[PodcastCards] Using cached data')
