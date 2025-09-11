@@ -24,7 +24,11 @@ type Resource = {
   linkToOriginalSource?: string;
 }
 
-const OverCrowding = () => {
+interface OverCrowdingProps {
+  themeIndex?: number;
+}
+
+const OverCrowding = ({ themeIndex }: OverCrowdingProps) => {
   const [resources, setResources] = useState<Resource[]>([])
   const [loading, setLoading] = useState(true)
   const [theme, setTheme] = useState<string>("")
@@ -37,43 +41,12 @@ const OverCrowding = () => {
     let mounted = true
     async function load() {
       try {
-        // Check cache first
-        const cacheKey = 'overcrowding-data'
-        const cachedData = pageCache.get(cacheKey) as {
-          resources: Resource[]
-          theme: string
-        } | null
-
-        if (cachedData && mounted) {
-          console.log('[OverCrowding] Using cached data')
-          setResources(cachedData.resources)
-          setTheme(cachedData.theme)
-          setCards(cachedData.resources.slice(0, 2))
-          setHasMore(cachedData.resources.length > 2)
-          setLoading(false)
-          return
-        }
 
         const themesRes = await fetch('/api/themes')
         const themesJson = await themesRes.json()
         const themes: { name: string; count: number }[] = Array.isArray(themesJson.data) ? themesJson.data : []
-        console.log('[OverCrowding] Available themes:', themes)
-        // Try to find a theme with resources, starting from index 2
-        let nextTrending = ''
-        for (let i = 2; i < themes.length && i < 6; i++) {
-          if (themes[i] && themes[i].count > 0) {
-            nextTrending = themes[i].name
-            console.log(`[OverCrowding] Found theme at index ${i}:`, themes[i])
-            break
-          }
-        }
-        
-        // Fallback to any theme with resources if none found in preferred range
-        if (!nextTrending) {
-          const fallbackTheme = themes.find(t => t.count > 0)
-          nextTrending = fallbackTheme?.name || themes[0]?.name || ''
-          console.log('[OverCrowding] Using fallback theme:', fallbackTheme)
-        }
+        const index = typeof themeIndex === 'number' ? Math.min(Math.max(themeIndex, 0), Math.max(0, themes.length - 1)) : 0
+        const nextTrending = themes[index]?.name || themes[0]?.name || ''
         console.log('[OverCrowding] Selected theme:', nextTrending)
         if (!mounted)
         {
@@ -83,6 +56,21 @@ const OverCrowding = () => {
         else
           console.log("mounted overcrowded")
         setTheme(nextTrending)
+
+        // Check cache per theme
+        const cacheKey = `overcrowding-data-${nextTrending}`
+        const cachedData = pageCache.get(cacheKey) as {
+          resources: Resource[]
+          theme: string
+        } | null
+        if (cachedData && mounted) {
+          console.log('[OverCrowding] Using cached data for theme', nextTrending)
+          setResources(cachedData.resources)
+          setCards(cachedData.resources.slice(0, 2))
+          setHasMore(cachedData.resources.length > 2)
+          setLoading(false)
+          return
+        }
 
         if (nextTrending) {
           console.log("API call for overcrowding section")
@@ -100,7 +88,7 @@ const OverCrowding = () => {
             image: item.image || undefined
           }))
           
-          // Cache the data for 5 minutes
+          // Cache the data for 5 minutes (per theme)
           pageCache.set(cacheKey, {
             resources: initialResources,
             theme: nextTrending
@@ -128,7 +116,7 @@ const OverCrowding = () => {
     }
     load()
     return () => { mounted = false }
-  }, [])
+  }, [themeIndex])
 
   // Load OG images asynchronously - original approach
   const loadOGImages = (resources: Resource[]) => {

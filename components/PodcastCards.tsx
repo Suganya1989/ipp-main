@@ -37,10 +37,11 @@ type PodcastCacheEntry = {
 }
 
 interface PodcastCardsProps {
-  startIndex?: number;
+  startIndex?: number; // still used for pagination window size and initial index within theme
+  themeIndex?: number; // explicit theme index to pick from /api/themes
 }
 
-const PodcastCards = ({ startIndex = 0 }: PodcastCardsProps) => {
+const PodcastCards = ({ startIndex = 0, themeIndex: themeIndexProp }: PodcastCardsProps) => {
   const [items, setItems] = useState<Resource[]>([])
   const [allItems, setAllItems] = useState<Resource[]>([])
   const [currentIndex, setCurrentIndex] = useState(0)
@@ -83,23 +84,7 @@ const PodcastCards = ({ startIndex = 0 }: PodcastCardsProps) => {
     
     async function load() {
       try {
-        // Check cache first
-        const cacheKey = `podcast-data-${startIndex}`
-        const cachedData = pageCache.get(cacheKey) as PodcastCacheEntry | null
-
-        if (cachedData && mounted) {
-          console.log('[PodcastCards] Using cached data')
-          const { allPodcastItems, themeName } = cachedData
-          setAllItems(allPodcastItems)
-          setTheme(themeName)
-          
-          // Show first 3 items from the cached theme
-          const initialItems = allPodcastItems.slice(0, 3)
-          setItems(initialItems)
-          setCurrentIndex(0)
-          setHasMore(allPodcastItems.length > 3)
-          return
-        }
+        // We'll compute the theme first, then use it for caching
 
         // Get themes first, then fetch resources using getResourcesByTheme
         const themesRes = await fetch('/api/themes')
@@ -109,9 +94,28 @@ const PodcastCards = ({ startIndex = 0 }: PodcastCardsProps) => {
         
         const themes = Array.isArray(themesData.data) ? themesData.data : []
         
-        // Pick theme by position: first section uses first theme, second uses next theme, etc.
-        const themeIndex = Math.min(Math.floor(startIndex / 3), Math.max(0, themes.length - 1))
+        // Pick theme by provided themeIndex prop; fallback to position derived from startIndex
+        const derivedIndex = Math.floor(startIndex / 3)
+        const themeIndex = Math.min(
+          typeof themeIndexProp === 'number' ? themeIndexProp : derivedIndex,
+          Math.max(0, themes.length - 1)
+        )
         const selectedTheme = themes[themeIndex]?.name || themes[0]?.name || ''
+
+        // Check cache per selected theme
+        const cacheKey = `podcast-data-${selectedTheme}`
+        const cachedData = pageCache.get(cacheKey) as PodcastCacheEntry | null
+        if (cachedData && mounted) {
+          console.log('[PodcastCards] Using cached data for theme', selectedTheme)
+          const { allPodcastItems, themeName } = cachedData
+          setAllItems(allPodcastItems)
+          setTheme(themeName)
+          const initialItems = allPodcastItems.slice(0, 3)
+          setItems(initialItems)
+          setCurrentIndex(0)
+          setHasMore(allPodcastItems.length > 3)
+          return
+        }
         
         // Fetch resources for the selected theme only
         let allThemeResources: Resource[] = []
@@ -137,7 +141,7 @@ const PodcastCards = ({ startIndex = 0 }: PodcastCardsProps) => {
           image: item.image || undefined
         }))
         
-        // Cache the data for 5 minutes
+        // Cache the data for 5 minutes (per theme)
         pageCache.set(cacheKey, {
           allPodcastItems,
           themeName: selectedTheme
@@ -167,7 +171,7 @@ const PodcastCards = ({ startIndex = 0 }: PodcastCardsProps) => {
     
     load()
     return () => { mounted = false }
-  }, [startIndex, fetchImage])
+  }, [startIndex, themeIndexProp, fetchImage])
 
 
   // Create intersection observer for loading images when cards become visible
@@ -263,10 +267,9 @@ const PodcastCards = ({ startIndex = 0 }: PodcastCardsProps) => {
                 onClick={handlePrevious}
                 variant="outline" 
                 size="sm"
-                className="flex items-center gap-2 hover:bg-brand-secondary-50 border-brand-secondary-200"
+                className="flex items-center hover:bg-brand-secondary-50 border-brand-secondary-200"
               >
                 <ChevronLeft className="w-4 h-4" />
-                <span>Previous</span>
               </Button>
             )}
             {hasMore && (
@@ -274,9 +277,8 @@ const PodcastCards = ({ startIndex = 0 }: PodcastCardsProps) => {
                 onClick={handleNext}
                 variant="outline" 
                 size="sm"
-                className="flex items-center gap-2 hover:bg-brand-secondary-50 border-brand-secondary-200"
+                className="flex items-center hover:bg-brand-secondary-50 border-brand-secondary-200"
               >
-                <span>Next</span>
                 <ChevronRight className="w-4 h-4" />
               </Button>
             )}

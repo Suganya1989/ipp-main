@@ -66,26 +66,31 @@ export default function Home() {
             </button>
           </div>
         </div>
-        {/* Trending tags */}
-        <div className="flex flex-wrap items-center gap-2 md:gap-3">
-          {trending.slice(0,6).map((t) => (
-            <Badge
-              key={t.name}
-              variant="secondary"
-              className="px-3 py-1 rounded-full cursor-pointer"
-              onClick={() => router.push(`/topics?theme=${encodeURIComponent(t.name)}`)}
-            >
-              {t.name}
-            </Badge>
-          ))}
+        {/* Trending section */}
+        <div className="flex flex-col md:flex-row md:items-center gap-3.5">
+          <div className="flex items-center gap-2 text-gray-600">
+            <span className="font-medium">🔥 Trending:</span>
+          </div>
+          <div className="flex flex-wrap items-center gap-2 md:gap-3">
+            {trending.slice(0,6).map((t) => (
+              <Badge
+                key={t.name}
+                variant="secondary"
+                className="px-3 py-1 rounded-full cursor-pointer"
+                onClick={() => router.push(`/topics?theme=${encodeURIComponent(t.name)}`)}
+              >
+                {t.name}
+              </Badge>
+            ))}
+          </div>
         </div>
       </div>
       <Featured />
-      <RulesAndFramework />
-      <PodcastCards startIndex={0} />
+      <RulesAndFramework themeIndex={1} />
+      <PodcastCards startIndex={0} themeIndex={2} />
       <ShareCard />
-      <OverCrowding />
-      <PodcastCards startIndex={4} />
+      <OverCrowding themeIndex={0} />
+      <PodcastCards startIndex={4} themeIndex={3} />
       <MoreTopics />
     </div>
   );

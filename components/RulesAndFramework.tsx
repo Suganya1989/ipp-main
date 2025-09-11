@@ -24,7 +24,11 @@ type Resource = {
   linkToOriginalSource?: string;
 }
 
-const RulesAndFramework = () => {
+interface RulesAndFrameworkProps {
+  themeIndex?: number;
+}
+
+const RulesAndFramework = ({ themeIndex }: RulesAndFrameworkProps) => {
   const [allResources, setAllResources] = useState<Resource[]>([])
   const [resources, setResources] = useState<Resource[]>([])
   const [loading, setLoading] = useState(true)
@@ -67,17 +71,28 @@ const RulesAndFramework = () => {
     let mounted = true
     async function load() {
       try {
-        // Check cache first
-        const cacheKey = 'rules-framework-data'
+        // We'll determine the theme first, then do theme-specific cache
+
+        // 1) Fetch themes sorted by count (trending)
+        const themesRes = await fetch('/api/themes')
+        const themesJson = await themesRes.json()
+        const themes: { name: string; count: number }[] = Array.isArray(themesJson.data) ? themesJson.data : []
+        // Pick theme by provided index; fallback to original preference
+        const idx = typeof themeIndex === 'number' ? Math.min(Math.max(themeIndex, 0), Math.max(0, themes.length - 1)) : 1
+        const nextTrending = themes[idx]?.name || themes[0]?.name || themes[2]?.name || ''
+        if (!mounted) return
+        setTheme(nextTrending)
+
+        // Check cache per theme
+        const cacheKey = `rules-framework-data-${nextTrending}`
         const cachedData = pageCache.get(cacheKey) as {
           allResources: Resource[]
           theme: string
         } | null
 
         if (cachedData && mounted) {
-          console.log('[RulesAndFramework] Using cached data')
+          console.log('[RulesAndFramework] Using cached data for theme', nextTrending)
           setAllResources(cachedData.allResources)
-          setTheme(cachedData.theme)
           const currentPageResources = cachedData.allResources.slice(0, 2)
           setResources(currentPageResources)
           setHasMore(cachedData.allResources.length > 2)
@@ -92,15 +107,6 @@ const RulesAndFramework = () => {
           return
         }
 
-        // 1) Fetch themes sorted by count (trending)
-        const themesRes = await fetch('/api/themes')
-        const themesJson = await themesRes.json()
-        const themes: { name: string; count: number }[] = Array.isArray(themesJson.data) ? themesJson.data : []
-        // Pick the 2nd most trending theme (index 1), fallback to 1st then 3rd
-        const nextTrending = themes[1]?.name || themes[0]?.name || themes[2]?.name || ''
-        if (!mounted) return
-        setTheme(nextTrending)
-
         if (nextTrending) {
           // 2) Fetch resources for that theme using getResourcesByTheme
           const res = await fetch(`/api/theme-resources?theme=${encodeURIComponent(nextTrending)}&limit=10`)
@@ -114,8 +120,8 @@ const RulesAndFramework = () => {
             image: item.image || undefined
           }))
           
-          // Cache the data for 5 minutes
-          pageCache.set(cacheKey, {
+          // Cache the data for 5 minutes per theme
+          pageCache.set(`rules-framework-data-${nextTrending}`, {
             allResources: initialResources,
             theme: nextTrending
           }, 300)
@@ -143,7 +149,7 @@ const RulesAndFramework = () => {
     }
     load()
     return () => { mounted = false }
-  }, [fetchImage])
+  }, [fetchImage, themeIndex])
 
   const cards = resources.slice(0, 2)
 
