@@ -95,6 +95,18 @@ export async function GET(request: Request) {
         }
       }
 
+      // Check theme for fallback images
+      const theme = searchParams.get('theme')?.toLowerCase() || ''
+      
+      // Return appropriate fallback image based on theme
+      if (theme.includes('human rights')) {
+        const fallbackImage = `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/hr.png`
+        return NextResponse.json({ ogImage: fallbackImage })
+      } else if (theme.includes('overcrowding')) {
+        const fallbackImage = `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/Podcast2.jpg`
+        return NextResponse.json({ ogImage: fallbackImage })
+      }
+      
       return NextResponse.json({ error: 'No OG image found' }, { status: 404 })
 
     } catch (error: unknown) {

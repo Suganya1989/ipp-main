@@ -4,11 +4,12 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardFooter } from '@/components/ui/card'
 import { Label } from '@/components/ui/label'
-import { Bookmark, BookOpen, Pencil, Send, Sparkle, Sparkles, Zap } from 'lucide-react'
+import { Bookmark, BookOpen, Pencil, Send, Sparkles, Zap } from 'lucide-react'
 import Image from 'next/image'
 import Link from 'next/link'
 import { useCallback, useEffect, useState } from 'react'
 import { pageCache } from '@/lib/cache'
+import { formatDateDMY, getFallbackImage } from '@/lib/utils'
 
 type Resource = {
   id?: string;
@@ -17,6 +18,7 @@ type Resource = {
   type: string;
   source: string;
   date: string;
+  DateOfPublication?: string;
   image?: string;
   theme?: string;
   tags?: string[];
@@ -88,9 +90,11 @@ const Featured = () => {
         
         const featuredData = j.data || []
         console.log(featuredData)
-        const initialItems = featuredData.map((item: Resource) => ({
+        type UnknownResource = Resource & { ['date of publication']?: string }
+        const initialItems: Resource[] = (featuredData as UnknownResource[]).map((item) => ({
           ...item,
-          image: item.image 
+          DateOfPublication: item.DateOfPublication || item['date of publication'] || item.date,
+          image: item.image
         }))
         
         // Cache the data for 5 minutes
@@ -143,11 +147,11 @@ const Featured = () => {
                 className="w-full rounded-xl h-[320px] object-cover"
                 onError={(e) => {
                   const target = e.target as HTMLImageElement;
-                  target.src = "/Rules1.png";
+                  target.src = getFallbackImage(featured?.theme, featured?.tags)
                 }}
               />
             ) : (
-              <Image src="/Rules1.png" alt="Default" width={400} height={400} className="w-full rounded-xl h-[320px] object-cover" />
+              <Image src={getFallbackImage(featured?.theme, featured?.tags)} alt="Default" width={400} height={400} className="w-full rounded-xl h-[320px] object-cover" />
             )}
             <div className="absolute w-full h-full left-0 top-0  justify-center py-6 md:group-hover:opacity-100 md:opacity-0 flex  transition-all duration-200">
               <div className="w-11/12 flex justify-between h-fit">
@@ -180,10 +184,10 @@ const Featured = () => {
                 />
                 <AvatarFallback className="text-xs">{(featured?.authors || 'A').slice(0,1)}</AvatarFallback>
               </Avatar>
-              <div className="flex items-center gap-2 text-sm">
+              <div className="flex items-center gap-1.5 text-sm">
                 <h4>{featured?.source || 'Source'}</h4>
-                <Sparkle className="size-3 text-muted" strokeWidth={1.5} fill="" />
-                <p>{featured?.date || ''}</p>
+                <span aria-hidden className="text-muted-foreground">•</span>
+                <p>{formatDateDMY(featured?.DateOfPublication || featured?.date || '')}</p>
               </div>
             </div>
           </CardFooter>
@@ -232,16 +236,11 @@ const Featured = () => {
                     className="w-full h-full rounded-md object-cover"
                     onError={(e) => {
                       const target = e.target as HTMLImageElement;
-                      const parent = target.parentElement;
-                      if (parent) {
-                        parent.innerHTML = '<div class="w-full h-full rounded-md border-2 border-gray-200 bg-gray-50 flex items-center justify-center"><div class="text-gray-400 text-sm">Image unavailable</div></div>';
-                      }
+                      target.src = getFallbackImage(t?.theme, t?.tags)
                     }}
                   />
                 ) : (
-                  <div className="w-full h-full rounded-md border-2 border-gray-200 bg-gray-50 flex items-center justify-center">
-                    <div className="text-gray-400 text-sm">No image available</div>
-                  </div>
+                  <Image src={getFallbackImage(t?.theme, t?.tags)} alt="Default" width={400} height={400} className="w-full h-full rounded-md object-cover" />
                 )}
               </div>
               <div className="space-y-2 w-3/5">

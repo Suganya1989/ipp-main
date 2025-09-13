@@ -6,7 +6,9 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardFooter } from '@/components/ui/card'
 import { Label } from '@/components/ui/label'
 import { Separator } from '@/components/ui/separator'
-import { Bookmark, FileText, Pencil, Send, Sparkle } from 'lucide-react'
+import { Bookmark, FileText, Pencil, Send } from 'lucide-react'
+import { formatDateDMY } from '@/lib/utils'
+
 import { Instrument_Serif } from 'next/font/google'
 import Image from 'next/image'
 import Link from 'next/link'
@@ -43,6 +45,7 @@ type Resource = {
     type: string;
     source: string;
     date: string;
+    DateOfPublication?: string;
     image?: string;
     theme?: string;
     authors?: string;
@@ -73,8 +76,10 @@ const TopicsPageContent = () => {
             const resourcesData = Array.isArray(data.data) ? data.data : []
             
             // Set initial resources without default images
-            const initialResources = resourcesData.map((item: Resource) => ({
+            type UnknownResource = Resource & { ['date of publication']?: string }
+            const initialResources = (resourcesData as UnknownResource[]).map((item) => ({
                 ...item,
+                DateOfPublication: item.DateOfPublication || item['date of publication'] || item.date,
                 image: item.image || undefined // Don't set default image initially
             }))
             
@@ -257,19 +262,10 @@ const TopicsPageContent = () => {
                                                 <div className="w-11/12 flex flex-col justify-between h-fit space-y-3">
                                                     <Label className="text-muted uppercase text-sm">{resource.theme || 'Theme'}</Label>
                                                     <h2 className="text-base font-semibold text-white">{resource.title}</h2>
-                                                    <div className="flex items-center gap-2">
-                                                        <Avatar className="rounded-full size-5">
-                                                            <AvatarImage
-                                                                src="https://github.com/evilrabbit.jpg"
-                                                                alt="author"
-                                                            />
-                                                            <AvatarFallback className="text-xs bg-amber-100 text-amber-600 font-medium">{(resource.authors || 'A').slice(0,1)}</AvatarFallback>
-                                                        </Avatar>
-                                                        <div className="flex items-center gap-2 text-xs text-white">
-                                                            <h4>{resource.source || 'Source'}</h4>
-                                                            <Sparkle className="size-3 text-muted" strokeWidth={1.5} fill="" />
-                                                            <p>{resource.date || '2025'}</p>
-                                                        </div>
+                                                    <div className="flex items-center gap-1.5 text-xs text-white">
+                                                        <h4>{resource.source || 'Source'}</h4>
+                                                        <span aria-hidden className="text-white/80">•</span>
+                                                        <p>{formatDateDMY(resource.DateOfPublication || resource.date)}</p>
                                                     </div>
                                                 </div>
                                             </div>
@@ -321,19 +317,10 @@ const TopicsPageContent = () => {
                                             <div className="w-[95%] flex flex-col justify-evenly h-2/5 space-y-3 p-2">
                                                 <Label className="text-muted-foreground uppercase text-sm">{resource.theme || 'Theme'}</Label>
                                                 <h2 className="text-base font-semibold">{resource.title}</h2>
-                                                <div className="flex items-center gap-2">
-                                                    <Avatar className="rounded-full size-6">
-                                                        <AvatarImage
-                                                            src="https://github.com/evilrabbit.jpg"
-                                                            alt="author"
-                                                        />
-                                                        <AvatarFallback className="text-xs bg-rose-100 text-rose-500 font-medium">{(resource.authors || 'A').slice(0,1)}</AvatarFallback>
-                                                    </Avatar>
-                                                    <div className="flex items-center gap-2 text-xs">
-                                                        <h4>{resource.source || 'Source'}</h4>
-                                                        <Sparkle className="size-3 text-muted-foreground" strokeWidth={1.5} fill="" />
-                                                        <p>{resource.date || '2025'}</p>
-                                                    </div>
+                                                <div className="flex items-center gap-1.5 text-xs">
+                                                    <h4>{resource.source || 'Source'}</h4>
+                                                    <span aria-hidden className="text-muted-foreground">•</span>
+                                                    <p>{formatDateDMY(resource.DateOfPublication || resource.date)}</p>
                                                 </div>
                                             </div>
                                         </CardContent>

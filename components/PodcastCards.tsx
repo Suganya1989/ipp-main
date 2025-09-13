@@ -8,12 +8,13 @@ import {
   CardFooter
 } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
-import { Bookmark, ChevronLeft, ChevronRight, FileText, Pencil, Send, Sparkle } from "lucide-react";
+import { Bookmark, ChevronLeft, ChevronRight, FileText, Pencil, Send } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { pageCache } from '@/lib/cache'
+import { formatDateDMY, getFallbackImage } from '@/lib/utils'
 
 type Resource = {
   id?: string;
@@ -22,6 +23,7 @@ type Resource = {
   type: string;
   source: string;
   date: string;
+  DateOfPublication?: string;
   image?: string;
   theme?: string;
   tags?: string[];
@@ -50,9 +52,12 @@ const PodcastCards = ({ startIndex = 0, themeIndex: themeIndexProp }: PodcastCar
   const router = useRouter()
 
   const fetchImage = useCallback(async (item: Resource) => {
-    if (!item?.linkToOriginalSource) return
+    const src = item?.linkToOriginalSource
+    if (!src || !(src.startsWith('http://') || src.startsWith('https://'))) return
     
     try {
+      const controller = new AbortController()
+      const timeoutId = setTimeout(() => controller.abort(), 8000) // 8s timeout
       const response = await fetch('/api/og-image-async', {
         method: 'POST',
         headers: {
@@ -60,22 +65,22 @@ const PodcastCards = ({ startIndex = 0, themeIndex: themeIndexProp }: PodcastCar
         },
         body: JSON.stringify({
           resourceId: item.id,
-          url: item.linkToOriginalSource
-        })
+          url: src
+        }),
+        signal: controller.signal
       })
+      clearTimeout(timeoutId)
       
-      const ogData = await response.json()
-      if (ogData.ogImage && !ogData.ogImage.startsWith('/')) {
-        setItems((prevItems: Resource[]) => 
-          prevItems.map(prevItem => 
-            prevItem.id === ogData.resourceId 
-              ? { ...prevItem, image: ogData.ogImage }
-              : prevItem
-          )
-        )
+      if (response.ok) {
+        const ogData = await response.json()
+        if (ogData?.ogImage && typeof ogData.ogImage === 'string' && !ogData.ogImage.startsWith('/')) {
+          // Update the corresponding item in allItems and items
+          setAllItems(prev => prev.map(r => r.id === item.id ? { ...r, image: ogData.ogImage } : r))
+          setItems(prev => prev.map(r => r.id === item.id ? { ...r, image: ogData.ogImage } : r))
+        }
       }
-    } catch (error) {
-      console.error('Failed to fetch OG image:', error)
+    } catch {
+      // swallow network/abort errors; do not surface in UI
     }
   }, [])
 
@@ -125,8 +130,11 @@ const PodcastCards = ({ startIndex = 0, themeIndex: themeIndexProp }: PodcastCar
             const json = await res.json()
             
             if (json.resources && Array.isArray(json.resources)) {
-              allThemeResources = json.resources.map((resource: Resource) => ({
+              type UnknownResource = Resource & { ['date of publication']?: string }
+              const list: UnknownResource[] = json.resources
+              allThemeResources = list.map((resource) => ({
                 ...resource,
+                DateOfPublication: resource.DateOfPublication || resource['date of publication'] || resource.date,
                 themeCategory: selectedTheme
               }))
             }
@@ -299,11 +307,17 @@ const PodcastCards = ({ startIndex = 0, themeIndex: themeIndexProp }: PodcastCar
                       className="w-full h-full object-cover"
                       onError={(e) => {
                         const target = e.target as HTMLImageElement;
-                        target.src = "/Rules1.png";
+                        target.src = getFallbackImage(card?.theme, card?.tags);
                       }}
                     />
                   ) : (
-                    <Image src="/Rules1.png" alt="Default" width={400} height={400} className="w-full h-full object-cover" />
+                    <Image 
+                      src={getFallbackImage(card?.theme, card?.tags)} 
+                      alt="Default" 
+                      width={400} 
+                      height={400} 
+                      className="w-full h-full object-cover" 
+                    />
                   )}
                 </div>
                 <div className="absolute w-full h-full bg-gradient-to-b from-zinc-700/10 to-zinc-900/60 left-0 top-0 justify-between py-4 items-center flex flex-col transition-all duration-200 rounded-xl">
@@ -348,10 +362,10 @@ const PodcastCards = ({ startIndex = 0, themeIndex: themeIndexProp }: PodcastCar
                         />
                         <AvatarFallback className="text-xs">{(card?.authors || 'A').slice(0,1)}</AvatarFallback>
                       </Avatar>
-                      <div className="flex items-center gap-2 text-sm text-white/80">
+                      <div className="flex items-center gap-1.5 text-sm text-white/80">
                         <h4>{card?.source || 'Source'}</h4>
-                        <Sparkle className="size-3 text-muted" strokeWidth={1.5} fill="" />
-                        <p>{card?.date || '23 Aug 2025'}</p>
+                        <span aria-hidden className="text-white/60">•</span>
+                        <p>{formatDateDMY(card?.DateOfPublication || card?.date || '')}</p>
                       </div>
                     </div>
                   </div>

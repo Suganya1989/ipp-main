@@ -4,10 +4,11 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardFooter } from '@/components/ui/card'
 import { Label } from '@/components/ui/label'
-import { BookOpen, Bookmark, ChevronLeft, ChevronRight, Pencil, Send, Sparkle } from 'lucide-react'
+import { BookOpen, Bookmark, ChevronLeft, ChevronRight, Pencil, Send } from 'lucide-react'
 import Image from 'next/image'
 import Link from 'next/link'
 import { useCallback, useEffect, useState } from 'react'
+import { formatDateDMY, getFallbackImage } from '@/lib/utils'
 import { pageCache } from '@/lib/cache'
 
 type Resource = {
@@ -17,6 +18,7 @@ type Resource = {
   type: string;
   source: string;
   date: string;
+  DateOfPublication?: string;
   image?: string;
   theme?: string;
   tags?: string[];
@@ -300,7 +302,7 @@ const OverCrowding = ({ themeIndex }: OverCrowdingProps) => {
                       }}
                     />
                 ) : (
-                  <Image src="/Rules1.png" alt="Default" width={400} height={400} className="w-full h-80 object-cover rounded-xl" />
+                  <Image src={getFallbackImage(item?.theme, item?.tags)} alt="Default" width={400} height={400} className="w-full h-80 object-cover rounded-xl" />
                 )}
                 <div className="absolute w-full h-full left-0 top-0  justify-center py-6 group-hover:opacity-100 opacity-0 flex  transition-all duration-200">
                   <div className="w-11/12 flex justify-between h-fit">
@@ -333,10 +335,10 @@ const OverCrowding = ({ themeIndex }: OverCrowdingProps) => {
                     />
                     <AvatarFallback className="text-xs">{(item.authors || 'A').slice(0,1)}</AvatarFallback>
                   </Avatar>
-                  <div className="flex items-center gap-2 text-sm">
+                  <div className="flex items-center gap-1.5 text-sm">
                     <h4>{item.source || 'Source'}</h4>
-                    <Sparkle className="size-3 text-muted" strokeWidth={1.5} fill="" />
-                    <p>{item.date || ''}</p>
+                    <span aria-hidden className="text-muted-foreground">•</span>
+                    <p>{formatDateDMY(item.DateOfPublication || item.date || '')}</p>
                   </div>
                 </div>
               </CardFooter>

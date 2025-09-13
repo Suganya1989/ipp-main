@@ -7,13 +7,13 @@ import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Separator } from '@/components/ui/separator'
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet'
-import { cn as classNameMerge } from "@/lib/utils"
-import { Bookmark, FileText, Funnel, Gavel, Mic2, Newspaper, Pencil, Send, Sparkle, Video } from 'lucide-react'
+import { cn as classNameMerge, formatDateDMY } from "@/lib/utils"
+import { Bookmark, FileText, Funnel, Gavel, Mic2, Newspaper, Pencil, Send, Video } from 'lucide-react'
 import { Instrument_Serif } from 'next/font/google'
 import Image from 'next/image'
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
-import React, { Suspense, useEffect, useMemo, useState } from 'react'
+import React, { Suspense, useEffect, useState } from 'react'
 
 
 const instrument_serif = Instrument_Serif({
@@ -30,6 +30,7 @@ type Resource = {
     tags: string[]
     source: string
     date: string
+    DateOfPublication?: string
     image?: string
     theme?: string
     authors?: string
@@ -121,7 +122,16 @@ const SearchContent = () => {
 
         fetch(`/api/search?${params.toString()}`, { signal: controller.signal })
             .then(r => r.json())
-            .then(j => { if (mounted) setResults(Array.isArray(j.data) ? j.data : []) })
+            .then(j => {
+              if (!mounted) return
+              type UnknownResource = Resource & { ['date of publication']?: string }
+              const list: UnknownResource[] = Array.isArray(j.data) ? j.data : []
+              const normalized: Resource[] = list.map((it) => ({
+                ...it,
+                DateOfPublication: it.DateOfPublication || it['date of publication'] || it.date
+              }))
+              setResults(normalized)
+            })
             .catch((err) => { if (mounted && err?.name !== 'AbortError') setResults([]) })
             .finally(() => { if (mounted) setLoading(false) })
         return () => { mounted = false; controller.abort() }
@@ -400,7 +410,7 @@ const SearchContent = () => {
                             )}
                             {!loading && results.map((r, i) => (
                                 <div key={r.id}>
-                                    <div className="flex flex-col md:flex-row gap-3.5 h-fit md:h-36">
+                                    <Link href={`/resource/${r.id || encodeURIComponent(r.title)}`} className="flex flex-col md:flex-row gap-3.5 h-fit md:h-36 group">
                                         {/* Thumbnail */}
                                         <div className="relative h-28 w-36 shrink-0 overflow-hidden rounded-md bg-muted md:h-full md:w-44">
                                             {r.image ? (
@@ -409,7 +419,7 @@ const SearchContent = () => {
                                                     alt="Result thumbnail"
                                                     fill
                                                     sizes="128px"
-                                                    className="object-cover"
+                                                    className="object-cover group-hover:opacity-95 transition-opacity"
                                                 />
                                             ) : (
                                                 <div className="absolute inset-0 bg-muted animate-pulse" />
@@ -432,7 +442,7 @@ const SearchContent = () => {
                                                     </Button>
                                                 </div>
                                             </div>
-                                            <h2 className="text-lg md:text-2xl font-semibold text-brand-primary-900">{r.title}</h2>
+                                            <h2 className="text-lg md:text-2xl font-semibold text-brand-primary-900 group-hover:underline">{r.title}</h2>
                                             <div className='flex flex-col md:flex-row gap-2 md:items-center justify-between mt-2'>
                                                 <div className="flex items-center gap-2">
                                                     <Avatar className="rounded-full size-6">
@@ -442,10 +452,10 @@ const SearchContent = () => {
                                                         />
                                                         <AvatarFallback className="text-xs">{(r.authors || 'A').slice(0,1)}</AvatarFallback>
                                                     </Avatar>
-                                                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                                                    <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
                                                         <h4>{r.source}</h4>
-                                                        <Sparkle className="size-3 text-muted" strokeWidth={1.5} fill="" />
-                                                        <p>{r.date}</p>
+                                                        <span aria-hidden className="text-muted-foreground">•</span>
+                                                        <p>{formatDateDMY(r.DateOfPublication || r.date)}</p>
                                                     </div>
                                                 </div>
                                                 <div className="hidden md:flex items-center">
@@ -461,7 +471,7 @@ const SearchContent = () => {
                                                 </div>
                                             </div>
                                         </div>
-                                    </div>
+                                    </Link>
                                     {i < results.length - 1 && <Separator className="mt-6" />}
                                 </div>
                             ))}

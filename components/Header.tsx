@@ -19,15 +19,15 @@ const Header = () => {
         <header className="flex items-center justify-center h-16 sticky top-0 bg-background z-40">
             <div className="flex items-center justify-between w-11/12 md:w-10/12 ">
                 {/* Logo */}
-                <div>
+                <Link href="/" className="inline-block">
                     <Image
                         src={"/IPP Logo.png"}
                         width={200}
                         height={200}
                         alt="Logo"
-                        className="w-24 md:w-28"
+                        className="w-24 md:w-28 cursor-pointer"
                     />
-                </div>
+                </Link>
 
                 {/* Desktop Navigation */}
                 <nav className="hidden md:flex items-center gap-10 text-muted-foreground">

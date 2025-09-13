@@ -186,7 +186,7 @@ function mapWeaviateItemToPrisonResource(item: unknown, index: number): PrisonRe
   const sourcePlatform = String(rec.sourcePlatform ?? props?.sourcePlatform ?? '');
   const authors = String(rec.authors ?? props?.authors ?? '');
   const linkToOriginalSource = link ?? '';
-  const dateOfPublication = String(rec.dateOfPublication ?? props?.dateOfPublication ?? new Date().toISOString());
+  const dateOfPublication = String(rec.dateOfPublication ?? props?.dateOfPublication ?? '');
   const subTheme = String(rec.subTheme ?? props?.subTheme ?? '');
   const keywords = String(rec.keywords ?? props?.keywords ?? '');
   const location = String(rec.location ?? props?.location ?? '');
@@ -762,16 +762,16 @@ function parseKeywords(keywords: unknown): string[] {
 }
 
 function formatDate(dateInput: unknown): string {
-  if (dateInput == null || dateInput === '') return new Date().toISOString().split('T')[0];
+  if (dateInput == null || dateInput === '') return '';
   try {
     if (dateInput instanceof Date) return dateInput.toISOString().split('T')[0];
     if (typeof dateInput === 'number') return new Date(dateInput).toISOString().split('T')[0];
     // For strings or other types
     const s = String(dateInput);
     const d = new Date(s);
-    return isNaN(d.getTime()) ? new Date().toISOString().split('T')[0] : d.toISOString().split('T')[0];
+    return isNaN(d.getTime()) ? '' : d.toISOString().split('T')[0];
   } catch {
-    return new Date().toISOString().split('T')[0];
+    return '';
   }
 }
 

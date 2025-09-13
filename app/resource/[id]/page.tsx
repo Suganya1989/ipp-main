@@ -5,12 +5,13 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardFooter } from '@/components/ui/card'
 import { Label } from '@/components/ui/label'
-import { ArrowLeft, Calendar, ExternalLink, MapPin, User, FileText, Bookmark, Send, Sparkle } from 'lucide-react'
+import { ArrowLeft, Calendar, ExternalLink, MapPin, User, FileText, Bookmark, Send } from 'lucide-react'
 import { Instrument_Serif } from 'next/font/google'
 import Image from 'next/image'
 import Link from 'next/link'
 import { useParams, useRouter } from 'next/navigation'
 import { useEffect, useRef, useState } from 'react'
+import { formatDateDMY, getFallbackImage } from '@/lib/utils'
 
 const instrument_serif = Instrument_Serif({
   subsets: ["latin"],
@@ -24,6 +25,7 @@ type Resource = {
   type: string;
   source: string;
   date: string;
+  DateOfPublication?: string;
   image?: string;
   theme?: string;
   tags?: string[];
@@ -263,7 +265,7 @@ const ResourceDetailsPage = () => {
                     )}
                     <div className="flex items-center gap-2">
                       <Calendar className="size-4" />
-                      <span>{resource.date}</span>
+                      <span>{formatDateDMY(resource.DateOfPublication || resource.date)}</span>
                     </div>
                     {resource.location && (
                       <div className="flex items-center gap-2">
@@ -429,12 +431,12 @@ const ResourceDetailsPage = () => {
                             className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
                             onError={(e) => {
                               const target = e.target as HTMLImageElement;
-                              target.src = "/Rules1.png";
+                              target.src = getFallbackImage(relatedResource?.theme, relatedResource?.tags)
                             }}
                           />
                         ) : (
                           <Image 
-                            src="/Rules1.png" 
+                            src={getFallbackImage(relatedResource?.theme, relatedResource?.tags)} 
                             alt="Default" 
                             width={400} 
                             height={200} 
@@ -474,15 +476,15 @@ const ResourceDetailsPage = () => {
                         <h3 className="font-semibold text-gray-900 line-clamp-2 mb-2 leading-tight">
                           {relatedResource.title}
                         </h3>
-                        <div className="flex items-center gap-2 text-xs text-gray-600">
+                        <div className="flex items-center gap-1.5 text-xs text-gray-600">
                           <Avatar className="size-4">
                             <AvatarFallback className="text-xs bg-gray-100">
                               {(relatedResource.authors || relatedResource.source || 'A').charAt(0)}
                             </AvatarFallback>
                           </Avatar>
                           <span>{relatedResource.source}</span>
-                          <Sparkle className="size-3" />
-                          <span>{relatedResource.date}</span>
+                          <span aria-hidden>•</span>
+                          <span>{formatDateDMY(relatedResource.DateOfPublication || relatedResource.date)}</span>
                         </div>
                       </div>
                     </CardFooter>
