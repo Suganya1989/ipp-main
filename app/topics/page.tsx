@@ -45,7 +45,7 @@ type Resource = {
     type: string;
     source: string;
     date: string;
-    DateOfPublication?: string;
+    dateOfPublication?: string;
     image?: string;
     theme?: string;
     authors?: string;
@@ -71,7 +71,7 @@ const TopicsPageContent = () => {
         
         setLoading(true)
         try {
-            const response = await fetch(`/api/search?themes=${encodeURIComponent(themeName)}&limit=15`)
+            const response = await fetch(`/ap~i/search?themes=${encodeURIComponent(themeName)}&limit=15`)
             const data = await response.json()
             const resourcesData = Array.isArray(data.data) ? data.data : []
             
@@ -79,7 +79,7 @@ const TopicsPageContent = () => {
             type UnknownResource = Resource & { ['date of publication']?: string }
             const initialResources = (resourcesData as UnknownResource[]).map((item) => ({
                 ...item,
-                DateOfPublication: item.DateOfPublication || item['date of publication'] || item.date,
+                DateOfPublication: item.dateOfPublication  || item.date,
                 image: item.image || undefined // Don't set default image initially
             }))
             
@@ -265,7 +265,7 @@ const TopicsPageContent = () => {
                                                     <div className="flex items-center gap-1.5 text-xs text-white">
                                                         <h4>{resource.source || 'Source'}</h4>
                                                         <span aria-hidden className="text-white/80">•</span>
-                                                        <p>{formatDateDMY(resource.DateOfPublication || resource.date)}</p>
+                                                        <p>{formatDateDMY(resource.dateOfPublication || resource.date)}</p>
                                                     </div>
                                                 </div>
                                             </div>
@@ -320,7 +320,7 @@ const TopicsPageContent = () => {
                                                 <div className="flex items-center gap-1.5 text-xs">
                                                     <h4>{resource.source || 'Source'}</h4>
                                                     <span aria-hidden className="text-muted-foreground">•</span>
-                                                    <p>{formatDateDMY(resource.DateOfPublication || resource.date)}</p>
+                                                    <p>{formatDateDMY(resource.dateOfPublication || resource.date)}</p>
                                                 </div>
                                             </div>
                                         </CardContent>

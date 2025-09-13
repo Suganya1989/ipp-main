@@ -13,7 +13,7 @@ export async function GET(
     }
 
     const resource = await getResourceByIdOrTitle(id)
-    
+    console.log(resource);
     if (!resource) {
       return NextResponse.json({ error: 'Resource not found' }, { status: 404 })
     }

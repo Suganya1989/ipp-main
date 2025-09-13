@@ -186,7 +186,7 @@ function mapWeaviateItemToPrisonResource(item: unknown, index: number): PrisonRe
   const sourcePlatform = String(rec.sourcePlatform ?? props?.sourcePlatform ?? '');
   const authors = String(rec.authors ?? props?.authors ?? '');
   const linkToOriginalSource = link ?? '';
-  const dateOfPublication = String(rec.dateOfPublication ?? props?.dateOfPublication ?? '');
+  const dateOfPublication = String(rec.date_publication ?? props?.date_publication ?? '');
   const subTheme = String(rec.subTheme ?? props?.subTheme ?? '');
   const keywords = String(rec.keywords ?? props?.keywords ?? '');
   const location = String(rec.location ?? props?.location ?? '');
@@ -303,6 +303,7 @@ export async function getFeaturedResources(limit: number = 5): Promise<PrisonRes
       .withLimit(limit)
       .do()) as WeaviateGetResponse;
     const docs = (res.data?.Get?.Docs ?? []) as unknown[];
+    console.log(docs);
     return docs.map((item, index) => mapWeaviateItemToPrisonResource(item, index));
   } catch (error) {
     console.error('Error fetching resources via Collections API:', error);

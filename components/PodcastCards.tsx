@@ -23,7 +23,7 @@ type Resource = {
   type: string;
   source: string;
   date: string;
-  DateOfPublication?: string;
+  dateOfPublication?: string;
   image?: string;
   theme?: string;
   tags?: string[];
@@ -134,7 +134,7 @@ const PodcastCards = ({ startIndex = 0, themeIndex: themeIndexProp }: PodcastCar
               const list: UnknownResource[] = json.resources
               allThemeResources = list.map((resource) => ({
                 ...resource,
-                DateOfPublication: resource.DateOfPublication || resource['date of publication'] || resource.date,
+                DateOfPublication: resource.dateOfPublication || resource['date of publication'] || resource.date,
                 themeCategory: selectedTheme
               }))
             }
@@ -365,7 +365,7 @@ const PodcastCards = ({ startIndex = 0, themeIndex: themeIndexProp }: PodcastCar
                       <div className="flex items-center gap-1.5 text-sm text-white/80">
                         <h4>{card?.source || 'Source'}</h4>
                         <span aria-hidden className="text-white/60">•</span>
-                        <p>{formatDateDMY(card?.DateOfPublication || card?.date || '')}</p>
+                        <p>{formatDateDMY(card?.dateOfPublication || card?.date || '')}</p>
                       </div>
                     </div>
                   </div>

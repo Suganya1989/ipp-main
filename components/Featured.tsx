@@ -18,7 +18,7 @@ type Resource = {
   type: string;
   source: string;
   date: string;
-  DateOfPublication?: string;
+  dateOfPublication?: string;
   image?: string;
   theme?: string;
   tags?: string[];
@@ -93,7 +93,7 @@ const Featured = () => {
         type UnknownResource = Resource & { ['date of publication']?: string }
         const initialItems: Resource[] = (featuredData as UnknownResource[]).map((item) => ({
           ...item,
-          DateOfPublication: item.DateOfPublication || item['date of publication'] || item.date,
+          DateOfPublication: item.dateOfPublication || item['date of publication'] || item.date,
           image: item.image
         }))
         
@@ -138,21 +138,17 @@ const Featured = () => {
             data-card-id={featured?.id || featured?.title}
           >
             <CardContent className="p-0 relative group">
-            {featured?.image ? (
-              <Image 
-                src={featured.image} 
-                alt="Featured" 
-                width={400} 
-                height={400} 
-                className="w-full rounded-xl h-[320px] object-cover"
-                onError={(e) => {
-                  const target = e.target as HTMLImageElement;
-                  target.src = getFallbackImage(featured?.theme, featured?.tags)
-                }}
-              />
-            ) : (
-              <Image src={getFallbackImage(featured?.theme, featured?.tags)} alt="Default" width={400} height={400} className="w-full rounded-xl h-[320px] object-cover" />
-            )}
+            <Image 
+              src={featured?.image || '/trending1.png'} 
+              alt="Featured" 
+              width={400} 
+              height={400} 
+              className="w-full rounded-xl h-[320px] object-cover"
+              onError={(e) => {
+                const target = e.target as HTMLImageElement;
+                target.src = '/trending1.png';
+              }}
+            />
             <div className="absolute w-full h-full left-0 top-0  justify-center py-6 md:group-hover:opacity-100 md:opacity-0 flex  transition-all duration-200">
               <div className="w-11/12 flex justify-between h-fit">
                 <Badge variant="secondary" className="px-2.5 py-1.5 space-x-px h-fit">
@@ -187,7 +183,7 @@ const Featured = () => {
               <div className="flex items-center gap-1.5 text-sm">
                 <h4>{featured?.source || 'Source'}</h4>
                 <span aria-hidden className="text-muted-foreground">•</span>
-                <p>{formatDateDMY(featured?.DateOfPublication || featured?.date || '')}</p>
+                <p>{formatDateDMY(featured?.dateOfPublication || featured?.date || '')}</p>
               </div>
             </div>
           </CardFooter>
@@ -230,17 +226,23 @@ const Featured = () => {
                 {t.image ? (
                   <Image 
                     src={t.image} 
-                    alt="Featured" 
+                    alt={t.title}
                     width={400} 
                     height={400} 
                     className="w-full h-full rounded-md object-cover"
                     onError={(e) => {
                       const target = e.target as HTMLImageElement;
-                      target.src = getFallbackImage(t?.theme, t?.tags)
+                      target.src = getFallbackImage(t?.theme, t?.tags);
                     }}
                   />
                 ) : (
-                  <Image src={getFallbackImage(t?.theme, t?.tags)} alt="Default" width={400} height={400} className="w-full h-full rounded-md object-cover" />
+                  <Image 
+                    src={getFallbackImage(t?.theme, t?.tags)} 
+                    alt={t.title}
+                    width={400} 
+                    height={400} 
+                    className="w-full h-full rounded-md object-cover" 
+                  />
                 )}
               </div>
               <div className="space-y-2 w-3/5">

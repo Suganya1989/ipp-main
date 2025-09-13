@@ -18,7 +18,7 @@ type Resource = {
   type: string;
   source: string;
   date: string;
-  DateOfPublication?: string;
+  dateOfPublication?: string;
   image?: string;
   theme?: string;
   tags?: string[];
@@ -338,7 +338,7 @@ const OverCrowding = ({ themeIndex }: OverCrowdingProps) => {
                   <div className="flex items-center gap-1.5 text-sm">
                     <h4>{item.source || 'Source'}</h4>
                     <span aria-hidden className="text-muted-foreground">•</span>
-                    <p>{formatDateDMY(item.DateOfPublication || item.date || '')}</p>
+                    <p>{formatDateDMY(item.dateOfPublication || item.date || '')}</p>
                   </div>
                 </div>
               </CardFooter>
