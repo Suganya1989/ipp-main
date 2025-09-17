@@ -22,6 +22,62 @@ import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
 import React, { Suspense, useEffect, useState } from 'react'
 
+// Component for handling OG image fetching
+const ResourceThumbnail = ({ resource }: { resource: Resource }) => {
+  const [ogImage, setOgImage] = useState<string | null>(null)
+  const [isLoading, setIsLoading] = useState(false)
+  const [hasError, setHasError] = useState(false)
+
+  useEffect(() => {
+    if (!resource.image && resource.linkToOriginalSource) {
+      setIsLoading(true)
+      fetch(`/api/og-image?url=${encodeURIComponent(resource.linkToOriginalSource)}&theme=${encodeURIComponent(resource.theme || '')}`)
+        .then(res => res.json())
+        .then(data => {
+          if (data.ogImage) {
+            setOgImage(data.ogImage)
+          }
+        })
+        .catch(() => setHasError(true))
+        .finally(() => setIsLoading(false))
+    }
+  }, [resource.image, resource.linkToOriginalSource, resource.theme])
+
+  const imageUrl = resource.image || ogImage
+
+  return (
+    <div className="relative h-28 w-36 shrink-0 overflow-hidden rounded-md bg-muted md:h-full md:w-44">
+      {imageUrl && !hasError ? (
+        <Image
+          src={imageUrl}
+          alt={`Thumbnail for ${resource.title}`}
+          fill
+          sizes="(max-width: 768px) 144px, 176px"
+          className="object-cover group-hover:opacity-95 transition-opacity"
+          onError={() => setHasError(true)}
+        />
+      ) : null}
+      {(!imageUrl || hasError) && (
+        <div className="absolute inset-0 bg-gradient-to-br from-muted to-muted-foreground/20 flex items-center justify-center">
+          <div className="text-center text-muted-foreground">
+            {isLoading ? (
+              <div className="animate-pulse">
+                <FileText className="mx-auto h-8 w-8 mb-2" strokeWidth={1} />
+                <p className="text-xs font-medium">Loading...</p>
+              </div>
+            ) : (
+              <>
+                <FileText className="mx-auto h-8 w-8 mb-2" strokeWidth={1} />
+                <p className="text-xs font-medium">{resource.type}</p>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 
 const instrument_serif = Instrument_Serif({
     subsets: ["latin"],
@@ -36,11 +92,13 @@ type Resource = {
     type: string
     tags: string[]
     source: string
+    sourceType?: string
     date: string
     DateOfPublication?: string
     image?: string
     theme?: string
     authors?: string
+    linkToOriginalSource?: string
 }
 
 const SearchContent = (): React.JSX.Element => {
@@ -52,40 +110,11 @@ const SearchContent = (): React.JSX.Element => {
     const [loading, setLoading] = useState<boolean>(true)
     const [topics, setTopics] = useState<string[]>([])
     const [tags, setTags] = useState<string[]>([])
-    const [states] = useState<string[]>([
-        "All state",
-        "Andhra Pradesh",
-        "Arunachal Pradesh", 
-        "Assam",
-        "Bihar",
-        "Chhattisgarh",
-        "Goa",
-        "Gujarat",
-        "Haryana",
-        "Himachal Pradesh",
-        "Jharkhand",
-        "Karnataka",
-        "Kerala",
-        "Madhya Pradesh",
-        "Maharashtra",
-        "Manipur",
-        "Meghalaya",
-        "Mizoram",
-        "Nagaland",
-        "Odisha",
-        "Punjab",
-        "Rajasthan",
-        "Sikkim",
-        "Tamil Nadu",
-        "Telangana",
-        "Tripura",
-        "Uttar Pradesh",
-        "Uttarakhand",
-        "West Bengal",
-        "Delhi",
-        "Jammu and Kashmir",
-        "Ladakh"
-    ])
+    const [relevantTags, setRelevantTags] = useState<string[]>([])
+    const [relevantTopics, setRelevantTopics] = useState<string[]>([])
+    const [selectedSourceTypes, setSelectedSourceTypes] = useState<string[]>([])
+    const [relevantSourceTypes, setRelevantSourceTypes] = useState<string[]>([])
+   
     const searchParams = useSearchParams()
     const query = searchParams.get("query") || ""
 
@@ -98,7 +127,7 @@ const SearchContent = (): React.JSX.Element => {
             fetch('/api/themes', { signal: themesController.signal })
                 .then(r => r.ok ? r.json() : { data: [] })
                 .catch(() => ({ data: ['General', 'Legal', 'Reform', 'Statistics', 'Education'] })),
-            fetch('/api/categories', { signal: catsController.signal })
+            fetch('/api/tags', { signal: catsController.signal })
                 .then(r => r.ok ? r.json() : { data: [] })
                 .catch(() => ({ data: ['Policy', 'Research', 'News', 'Case Studies', 'Reports'] })),
         ]).then(([themesRes, categoriesRes]) => {
@@ -125,29 +154,30 @@ const SearchContent = (): React.JSX.Element => {
         // Only set the query if it's not empty and not just whitespace
         const trimmedQuery = query?.trim()
         
-        // Add selected topics to the params
-        if (selectedTopics.length > 0) {
-            selectedTopics.forEach(topic => {
-                params.append('topics', topic);
-            });
-        }
         if (trimmedQuery) {
             params.set('query', trimmedQuery)
         }
-        
+
         // Append selected tags to query for keyword narrowing
         if (selectedTags.size) {
             const currentQuery = params.get('query') || ''
             const tagsQuery = Array.from(selectedTags).join(' ')
             params.set('query', currentQuery ? `${currentQuery} ${tagsQuery}`.trim() : tagsQuery)
         }
+
         // Types filters
         if (selectedTypes.size) {
             Array.from(selectedTypes).forEach((t) => params.append('types', t))
         }
+
         // Theme filter (topics)
         if (selectedTopics.length > 0) {
             selectedTopics.forEach(topic => params.append('themes', topic));
+        }
+
+        // Source type filter
+        if (selectedSourceTypes.length > 0) {
+            selectedSourceTypes.forEach(sourceType => params.append('sourceTypes', sourceType));
         }
 
         fetch(`/api/search?${params.toString()}`, { signal: controller.signal })
@@ -161,11 +191,58 @@ const SearchContent = (): React.JSX.Element => {
                 DateOfPublication: it.DateOfPublication || it['date of publication'] || it.date
               }))
               setResults(normalized)
+
+              // Extract and rank tags by frequency, show top 15 unique tags (case insensitive)
+              const allResultTags = normalized.flatMap(resource => resource.tags || [])
+              const tagFrequency = allResultTags.reduce((acc, tag) => {
+                if (tag && tag.trim()) { // Filter out empty/null tags
+                  const cleanTag = tag.trim()
+                  const lowerKey = cleanTag.toLowerCase()
+                  if (!acc[lowerKey]) {
+                    acc[lowerKey] = { count: 0, displayName: cleanTag }
+                  }
+                  acc[lowerKey].count += 1
+                }
+                return acc
+              }, {} as Record<string, { count: number, displayName: string }>)
+
+              const sortedTags = Object.values(tagFrequency)
+                .sort((a, b) => b.count - a.count)
+                .slice(0, 15)
+                .map(item => item.displayName)
+
+              setRelevantTags(sortedTags)
+
+              // Extract unique source types from search results
+              const allSourceTypes = normalized.map(resource => resource.sourceType).filter(Boolean)
+              const uniqueSourceTypes = [...new Set(allSourceTypes)]
+              setRelevantSourceTypes(uniqueSourceTypes)
+
+              // Extract and rank themes from search results
+              const allThemes = normalized.map(resource => resource.theme).filter(Boolean)
+              const themeFrequency = allThemes.reduce((acc, theme) => {
+                if (theme && theme.trim()) {
+                  const cleanTheme = theme.trim()
+                  const lowerKey = cleanTheme.toLowerCase()
+                  if (!acc[lowerKey]) {
+                    acc[lowerKey] = { count: 0, displayName: cleanTheme }
+                  }
+                  acc[lowerKey].count += 1
+                }
+                return acc
+              }, {} as Record<string, { count: number, displayName: string }>)
+
+              const sortedThemes = Object.values(themeFrequency)
+                .sort((a, b) => b.count - a.count)
+                .slice(0, 10)
+                .map(item => item.displayName)
+
+              setRelevantTopics(sortedThemes)
             })
             .catch((err) => { if (mounted && err?.name !== 'AbortError') setResults([]) })
             .finally(() => { if (mounted) setLoading(false) })
         return () => { mounted = false; controller.abort() }
-    }, [query, selectedTopics, selectedTypes, selectedTags, setResults, setLoading])
+    }, [query, selectedTopics, selectedTypes, selectedTags, selectedSourceTypes, setResults, setLoading])
 
     const onToggleType = (type: TypeKey) => {
         setSelectedTypes(prev => {
@@ -195,6 +272,14 @@ const SearchContent = (): React.JSX.Element => {
             next.add(t)
         }
         setSelectedTags(next)
+    }
+
+    const toggleSourceType = (sourceType: string, checked: boolean) => {
+        setSelectedSourceTypes(prev =>
+            checked
+                ? [...prev, sourceType]
+                : prev.filter(st => st !== sourceType)
+        );
     }
 
   return (
@@ -240,39 +325,23 @@ const SearchContent = (): React.JSX.Element => {
               <Separator />
               <div className="p-4">
                 <div className="space-y-6">
-                  {/* State */}
-                  <section className="space-y-2">
-                    <h3 className="text-sm font-medium text-muted-foreground">State</h3>
-                    <Select value={selectedState ?? "All state"} onValueChange={(v) => setSelectedState(v)}>
-                      <SelectTrigger className="w-full">
-                        <SelectValue placeholder="All state" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {states.map((s) => (
-                          <SelectItem key={s} value={s}>
-                            {s}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </section>
-
+                
                   {/* Topics */}
                   <section className="space-y-2">
                     <h3 className="text-sm font-medium text-muted-foreground">Topics</h3>
                     <div className="space-y-2 max-h-60 overflow-y-auto p-1">
-                      {topics.length === 0 ? (
-                        <p className="text-sm text-muted-foreground">No topics available</p>
+                      {relevantTopics.length === 0 ? (
+                        <p className="text-sm text-muted-foreground">No topics found in results</p>
                       ) : (
-                        topics.map((topic) => (
+                        relevantTopics.map((topic) => (
                           <div key={topic} className="flex items-center space-x-2">
                             <Checkbox
-                              id={`topic-${topic}`}
+                              id={`mobile-topic-${topic}`}
                               checked={selectedTopics.includes(topic)}
                               onCheckedChange={(checked) => toggleTopic(topic, checked as boolean)}
                             />
                             <Label
-                              htmlFor={`topic-${topic}`}
+                              htmlFor={`mobile-topic-${topic}`}
                               className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
                             >
                               {topic}
@@ -320,11 +389,37 @@ const SearchContent = (): React.JSX.Element => {
                     </div>
                   </section>
 
+                  {/* Source Types */}
+                  <section className="space-y-2">
+                    <h3 className="text-sm font-medium text-muted-foreground">Source Types</h3>
+                    <div className="space-y-2 max-h-60 overflow-y-auto p-1">
+                      {relevantSourceTypes.length === 0 ? (
+                        <p className="text-sm text-muted-foreground">No source types found in results</p>
+                      ) : (
+                        relevantSourceTypes.map((sourceType) => (
+                          <div key={sourceType} className="flex items-center space-x-2">
+                            <Checkbox
+                              id={`mobile-sourcetype-${sourceType}`}
+                              checked={selectedSourceTypes.includes(sourceType)}
+                              onCheckedChange={(checked) => toggleSourceType(sourceType, checked as boolean)}
+                            />
+                            <Label
+                              htmlFor={`mobile-sourcetype-${sourceType}`}
+                              className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
+                            >
+                              {sourceType}
+                            </Label>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </section>
+
                   {/* Tags */}
                   <section className="space-y-3">
                     <h3 className="text-sm font-medium text-muted-foreground">Tags</h3>
                     <div className="flex flex-wrap gap-2">
-                      {tags.map((t) => {
+                      {relevantTags.map((t) => {
                         const active = selectedTags.has(t)
                         return (
                           <Button
@@ -353,36 +448,20 @@ const SearchContent = (): React.JSX.Element => {
             <Card className='shadow-sm shadow-muted'>
               <CardContent className="p-4">
                 <div className="space-y-6">
-                  {/* State */}
-                  <section className="space-y-2">
-                    <h3 className="text-sm font-medium text-muted-foreground">State</h3>
-                    <Select value={selectedState ?? "All state"} onValueChange={(v) => setSelectedState(v)}>
-                      <SelectTrigger className="w-full">
-                        <SelectValue placeholder="All state" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {states.map((s) => (
-                          <SelectItem key={s} value={s}>
-                            {s}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </section>
-
+                
                   {/* Topics */}
                   <section className="space-y-2">
                     <h3 className="text-sm font-medium text-muted-foreground">Topics</h3>
                     <div className="max-h-60 overflow-y-auto space-y-2">
-                      {topics.length > 0 ? (
-                        topics.map((topic) => (
+                      {relevantTopics.length > 0 ? (
+                        relevantTopics.map((topic) => (
                           <div key={topic} className="flex items-center space-x-2">
                             <Checkbox
                               id={`topic-${topic}`}
                               checked={selectedTopics.includes(topic)}
                               onCheckedChange={(checked) => {
-                                setSelectedTopics(prev => 
-                                  checked 
+                                setSelectedTopics(prev =>
+                                  checked
                                     ? [...prev, topic]
                                     : prev.filter(t => t !== topic)
                                 );
@@ -394,7 +473,7 @@ const SearchContent = (): React.JSX.Element => {
                           </div>
                         ))
                       ) : (
-                        <p className="text-sm text-muted-foreground">No topics available</p>
+                        <p className="text-sm text-muted-foreground">No topics found in results</p>
                       )}
                     </div>
                   </section>
@@ -436,12 +515,41 @@ const SearchContent = (): React.JSX.Element => {
                     </div>
                   </section>
 
+                  {/* Source Types */}
+                  <section className="space-y-2">
+                    <h3 className="text-sm font-medium text-muted-foreground">Source Types</h3>
+                    <div className="max-h-60 overflow-y-auto space-y-2">
+                      {relevantSourceTypes.length > 0 ? (
+                        relevantSourceTypes.map((sourceType) => (
+                          <div key={sourceType} className="flex items-center space-x-2">
+                            <Checkbox
+                              id={`sourcetype-${sourceType}`}
+                              checked={selectedSourceTypes.includes(sourceType)}
+                              onCheckedChange={(checked) => {
+                                setSelectedSourceTypes(prev =>
+                                  checked
+                                    ? [...prev, sourceType]
+                                    : prev.filter(st => st !== sourceType)
+                                );
+                              }}
+                            />
+                            <Label htmlFor={`sourcetype-${sourceType}`} className="text-sm font-normal">
+                              {sourceType}
+                            </Label>
+                          </div>
+                        ))
+                      ) : (
+                        <p className="text-sm text-muted-foreground">No source types found in results</p>
+                      )}
+                    </div>
+                  </section>
+
                   {/* Tags */}
                   <section className="space-y-2">
                     <h3 className="text-sm font-medium text-muted-foreground">Tags</h3>
                     <div className="max-h-60 overflow-y-auto space-y-2">
-                      {tags.length > 0 ? (
-                        tags.map((tag) => (
+                      {relevantTags.length > 0 ? (
+                        relevantTags.map((tag) => (
                           <div key={tag} className="flex items-center space-x-2">
                             <Checkbox
                               id={`tag-${tag}`}
@@ -462,7 +570,7 @@ const SearchContent = (): React.JSX.Element => {
                           </div>
                         ))
                       ) : (
-                        <p className="text-sm text-muted-foreground">No tags available</p>
+                        <p className="text-sm text-muted-foreground">No tags found in results</p>
                       )}
                     </div>
                   </section>
@@ -483,19 +591,7 @@ const SearchContent = (): React.JSX.Element => {
                 <div key={r.id}>
                   <Link href={`/resource/${r.id || encodeURIComponent(r.title)}`} className="flex flex-col md:flex-row gap-3.5 h-fit md:h-36 group">
                     {/* Thumbnail */}
-                    <div className="relative h-28 w-36 shrink-0 overflow-hidden rounded-md bg-muted md:h-full md:w-44">
-                      {r.image ? (
-                        <Image
-                          src={r.image}
-                          alt="Result thumbnail"
-                          fill
-                          sizes="128px"
-                          className="object-cover group-hover:opacity-95 transition-opacity"
-                        />
-                      ) : (
-                        <div className="absolute inset-0 bg-muted animate-pulse" />
-                      )}
-                    </div>
+                    <ResourceThumbnail resource={r} />
 
                     {/* Content */}
                     <div className="flex flex-col justify-center gap-1.5 md:gap-1 h-full">
@@ -503,14 +599,14 @@ const SearchContent = (): React.JSX.Element => {
                         <Label className="text-muted-foreground uppercase text-sm">{r.theme || 'Resource'}</Label>
                         <div className="flex items-center gap-1">
                           <div className="flex flex-wrap gap-1 max-w-[100px] md:max-w-none overflow-hidden">
-                            {r.tags?.slice(0, 2).map((tag, idx) => (
+                            {[...new Set(r.tags)].slice(0, 2).map((tag, idx) => (
                               <span key={idx} className="text-xs px-2 py-0.5 bg-muted rounded-full whitespace-nowrap">
                                 {tag}
                               </span>
                             ))}
-                            {r.tags?.length > 2 && (
+                            {[...new Set(r.tags)].length > 2 && (
                               <span className="text-xs px-2 py-0.5 bg-muted rounded-full">
-                                +{r.tags.length - 2}
+                                +{[...new Set(r.tags)].length - 2}
                               </span>
                             )}
                           </div>
