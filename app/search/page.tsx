@@ -22,16 +22,25 @@ import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
 import React, { Suspense, useEffect, useState } from 'react'
 
-// Component for handling OG image fetching
+// Component for handling OG image fetching using the cached async endpoint
 const ResourceThumbnail = ({ resource }: { resource: Resource }) => {
   const [ogImage, setOgImage] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const [hasError, setHasError] = useState(false)
 
   useEffect(() => {
-    if (!resource.image && resource.linkToOriginalSource) {
+    if (!resource.image && resource.linkToOriginalSource && resource.id) {
       setIsLoading(true)
-      fetch(`/api/og-image?url=${encodeURIComponent(resource.linkToOriginalSource)}&theme=${encodeURIComponent(resource.theme || '')}`)
+      fetch('/api/og-image-async', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          resourceId: resource.id,
+          url: resource.linkToOriginalSource
+        })
+      })
         .then(res => res.json())
         .then(data => {
           if (data.ogImage) {
@@ -41,7 +50,7 @@ const ResourceThumbnail = ({ resource }: { resource: Resource }) => {
         .catch(() => setHasError(true))
         .finally(() => setIsLoading(false))
     }
-  }, [resource.image, resource.linkToOriginalSource, resource.theme])
+  }, [resource.image, resource.linkToOriginalSource, resource.id])
 
   const imageUrl = resource.image || ogImage
 
@@ -214,12 +223,12 @@ const SearchContent = (): React.JSX.Element => {
               setRelevantTags(sortedTags)
 
               // Extract unique source types from search results
-              const allSourceTypes = normalized.map(resource => resource.sourceType).filter(Boolean)
+              const allSourceTypes = normalized.map(resource => resource.sourceType).filter((sourceType): sourceType is string => Boolean(sourceType))
               const uniqueSourceTypes = [...new Set(allSourceTypes)]
               setRelevantSourceTypes(uniqueSourceTypes)
 
               // Extract and rank themes from search results
-              const allThemes = normalized.map(resource => resource.theme).filter(Boolean)
+              const allThemes = normalized.map(resource => resource.theme).filter((theme): theme is string => Boolean(theme))
               const themeFrequency = allThemes.reduce((acc, theme) => {
                 if (theme && theme.trim()) {
                   const cleanTheme = theme.trim()
