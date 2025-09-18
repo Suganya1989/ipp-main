@@ -71,7 +71,7 @@ const TopicsPageContent = () => {
         
         setLoading(true)
         try {
-            const response = await fetch(`/ap~i/search?themes=${encodeURIComponent(themeName)}&limit=15`)
+            const response = await fetch(`/api/search?themes=${encodeURIComponent(themeName)}&limit=15`)
             const data = await response.json()
             const resourcesData = Array.isArray(data.data) ? data.data : []
             
