@@ -687,48 +687,7 @@ export async function getTagsWithCounts(): Promise<Category[]> {
   }
 }
 
-// Method 7: Get resources by keywords/tags
-export async function getResourcesByKeywords(keywords: string[], limit: number = 20): Promise<PrisonResource[]> {
-  try {
-    const client = getClient();
-    const fields = await getSchemaFields();
-    const fieldSelection = fields && fields.length > 0
-      ? `${fields} _additional { id }`
-      : `source_title summary sourceType keywords sourcePlatform authors dateOfPublication image linkToOriginalSource subTheme location theme _additional { id }`;
-
-    // Build where conditions for keywords
-    const keywordConditions: WhereFilter[] = keywords.map(keyword => ({
-      path: ['keywords'],
-      operator: 'Like',
-      valueText: `*${keyword}*`
-    }));
-
-    // If multiple keywords, use OR to match any of them
-    const whereClause: WhereFilter = keywordConditions.length === 1
-      ? keywordConditions[0]
-      : {
-          operator: 'Or',
-          operands: keywordConditions
-        };
-
-    const res = await client.graphql
-      .get()
-      .withClassName('Docs')
-      .withFields(fieldSelection)
-      .withWhere(whereClause)
-      .withLimit(limit)
-      .do();
-
-    const items = ((res as WeaviateGetResponse)?.data?.Get?.Docs ?? []) as unknown[];
-    return items.map((item, index) => mapWeaviateItemToPrisonResource(item, index));
-
-  } catch (error) {
-    console.error('Error fetching resources by keywords:', error);
-    return [];
-  }
-}
-
-// Method 8: Get all themes with resource counts
+// Method 7: Get all themes with resource counts
 export async function getThemesWithCounts(): Promise<Category[]> {
   try {
     const client = getClient();

@@ -95,6 +95,49 @@ export default function Home() {
           </div>
         </div>
       </div>
+
+      {/* Companies Section */}
+      <section className="w-full bg-gray-50/50 py-4 border-t border-b border-gray-100">
+        <div className="w-11/12 md:w-10/12 mx-auto">
+          <div className="flex items-center justify-center gap-12 md:gap-16 lg:gap-20 flex-wrap">
+            {/* The Guardian */}
+            <div className="flex items-center justify-center h-12 text-gray-500 hover:text-gray-700 transition-all duration-300 transform hover:scale-105">
+              <svg viewBox="0 0 200 40" className="h-8 md:h-10 fill-current">
+                <text x="0" y="28" className="text-2xl md:text-3xl font-serif font-medium">The Guardian</text>
+              </svg>
+            </div>
+
+            {/* Bloomberg */}
+            <div className="flex items-center justify-center h-12 text-gray-500 hover:text-gray-700 transition-all duration-300 transform hover:scale-105">
+              <svg viewBox="0 0 160 40" className="h-8 md:h-10 fill-current">
+                <text x="0" y="28" className="text-2xl md:text-3xl font-sans font-semibold tracking-tight">Bloomberg</text>
+              </svg>
+            </div>
+
+            {/* Quotient */}
+            <div className="flex items-center justify-center h-12 text-gray-500 hover:text-gray-700 transition-all duration-300 transform hover:scale-105">
+              <svg viewBox="0 0 160 40" className="h-8 md:h-10 fill-current">
+                <text x="0" y="28" className="text-2xl md:text-3xl font-sans font-medium">Quotient</text>
+              </svg>
+            </div>
+
+            {/* Forbes */}
+            <div className="flex items-center justify-center h-12 text-gray-500 hover:text-gray-700 transition-all duration-300 transform hover:scale-105">
+              <svg viewBox="0 0 160 40" className="h-8 md:h-10 fill-current">
+                <text x="0" y="28" className="text-2xl md:text-3xl font-serif font-bold tracking-wide">FORBES</text>
+              </svg>
+            </div>
+
+            {/* Gizmodo */}
+            <div className="flex items-center justify-center h-12 text-gray-500 hover:text-gray-700 transition-all duration-300 transform hover:scale-105">
+              <svg viewBox="0 0 160 40" className="h-8 md:h-10 fill-current">
+                <text x="0" y="28" className="text-2xl md:text-3xl font-sans font-bold tracking-wider">GIZMODO</text>
+              </svg>
+            </div>
+          </div>
+        </div>
+      </section>
+
       <Featured />
       <RulesAndFramework themeIndex={1} />
       <PodcastCards startIndex={0} themeIndex={2} />

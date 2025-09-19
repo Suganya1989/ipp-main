@@ -222,279 +222,307 @@ const ResourceDetailsPage = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-white">
       {/* Header */}
-      <div className="bg-white border-b">
-        <div className="max-w-6xl mx-auto px-4 py-4">
-          <Button variant="ghost" onClick={() => router.back()} className="mb-2">
+      <div className="bg-gray-50 border-b">
+        <div className="max-w-4xl mx-auto px-6 py-6">
+          <nav className="text-sm text-gray-600 mb-4">
+            <Link href="/" className="hover:text-gray-900">Home</Link>
+            <span className="mx-2">›</span>
+            <Link href="/search" className="hover:text-gray-900">Resources</Link>
+            <span className="mx-2">›</span>
+            <span className="text-gray-900">{resource.type || 'Resource'}</span>
+          </nav>
+          <Button variant="ghost" onClick={() => router.back()} className="mb-4 p-0 h-auto font-normal text-gray-600 hover:text-gray-900">
             <ArrowLeft className="size-4 mr-2" />
-            Back
+            Back to results
           </Button>
-          <div className="flex items-center gap-2 text-sm text-muted-foreground">
-            <span>Indian Prison Portal</span>
-            <span>/</span>
-            <span>Resources</span>
-            <span>/</span>
-            <span className="text-foreground">{resource.title}</span>
-          </div>
         </div>
       </div>
 
-      <div className="max-w-6xl mx-auto px-4 py-8">
-        <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
-          {/* Main Content */}
-          <div className="lg:col-span-3">
-            <Card className="bg-white">
-              <CardContent className="p-8">
-                {/* Header */}
-                <div className="mb-6">
-                  <Badge variant="secondary" className="mb-4">
-                    {resource.type || resource.sourceType || 'Resource'}
+      {/* Main Content */}
+      <div className="max-w-4xl mx-auto px-6 py-8">
+        <article className="space-y-8">
+          {/* Title and Metadata */}
+          <header className="space-y-6">
+            <div className="space-y-4">
+              <h1 className={`${instrument_serif.className} text-3xl md:text-4xl font-semibold text-gray-900 leading-tight`}>
+                {resource.title}
+              </h1>
+
+              <div className="flex flex-wrap items-center gap-4 text-sm text-gray-600">
+                {resource.authors && (
+                  <div className="flex items-center gap-2">
+                    <User className="size-4" />
+                    <span>{resource.authors}</span>
+                  </div>
+                )}
+                <div className="flex items-center gap-2">
+                  <Calendar className="size-4" />
+                  <span>{formatDateDMY(resource.DateOfPublication || resource.date)}</span>
+                </div>
+                {resource.location && (
+                  <div className="flex items-center gap-2">
+                    <MapPin className="size-4" />
+                    <span>{resource.location}</span>
+                  </div>
+                )}
+                <Badge variant="outline" className="text-xs">
+                  {resource.type || resource.sourceType || 'Resource'}
+                </Badge>
+              </div>
+            </div>
+          </header>
+
+          {/* Featured Image */}
+          {(resource.image || ogImage) && !imageError && !resource.image?.startsWith('/') && !ogImage?.startsWith('/') && (
+            <div className="my-8">
+              <div className="relative h-64 md:h-96 w-full rounded-lg overflow-hidden bg-gray-100">
+                {imageLoading && (
+                  <div className="absolute inset-0 bg-gray-200 animate-pulse"></div>
+                )}
+
+                <Image
+                  src={resource.image || ogImage || ''}
+                  alt={resource.title}
+                  fill
+                  className="object-cover"
+                  priority
+                  sizes="(max-width: 768px) 100vw, 800px"
+                  onLoad={() => setImageLoading(false)}
+                  onError={() => {
+                    setImageError(true)
+                    setImageLoading(false)
+                  }}
+                />
+              </div>
+            </div>
+          )}
+
+          {/* Abstract/Summary */}
+          <section className="space-y-4">
+            <h2 className="text-xl font-semibold text-gray-900">Abstract</h2>
+            <p className="text-gray-700 leading-relaxed text-lg">
+              {resource.summary}
+            </p>
+          </section>
+
+          {/* Key Findings */}
+          <section className="space-y-4">
+            <h2 className="text-xl font-semibold text-gray-900">Key Findings</h2>
+            <div className="bg-blue-50 border-l-4 border-blue-400 p-6 rounded-r-lg">
+              <div className="space-y-3">
+                <div className="flex items-start gap-3">
+                  <span className="inline-block w-2 h-2 bg-blue-600 rounded-full mt-2 flex-shrink-0"></span>
+                  <p className="text-gray-800">
+                    This comprehensive study examines {resource.theme?.toLowerCase() || 'prison conditions'} and provides evidence-based recommendations for reform.
+                  </p>
+                </div>
+                <div className="flex items-start gap-3">
+                  <span className="inline-block w-2 h-2 bg-blue-600 rounded-full mt-2 flex-shrink-0"></span>
+                  <p className="text-gray-800">
+                    The research contributes to the broader understanding of correctional practices and their impact on rehabilitation outcomes.
+                  </p>
+                </div>
+                <div className="flex items-start gap-3">
+                  <span className="inline-block w-2 h-2 bg-blue-600 rounded-full mt-2 flex-shrink-0"></span>
+                  <p className="text-gray-800">
+                    Findings support the implementation of evidence-based policies to improve conditions and reduce recidivism.
+                  </p>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          {/* Metadata */}
+          <section className="space-y-4">
+            <h2 className="text-xl font-semibold text-gray-900">Resource Information</h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 bg-gray-50 p-6 rounded-lg">
+              <div className="space-y-4">
+                <div>
+                  <h3 className="text-sm font-medium text-gray-600 uppercase tracking-wide">Source</h3>
+                  <p className="text-gray-900 mt-1">{resource.source}</p>
+                </div>
+                {resource.theme && (
+                  <div>
+                    <h3 className="text-sm font-medium text-gray-600 uppercase tracking-wide">Theme</h3>
+                    <p className="text-gray-900 mt-1">{resource.theme}</p>
+                  </div>
+                )}
+                {resource.location && (
+                  <div>
+                    <h3 className="text-sm font-medium text-gray-600 uppercase tracking-wide">Location</h3>
+                    <p className="text-gray-900 mt-1">{resource.location}</p>
+                  </div>
+                )}
+              </div>
+              <div className="space-y-4">
+                <div>
+                  <h3 className="text-sm font-medium text-gray-600 uppercase tracking-wide">Type</h3>
+                  <p className="text-gray-900 mt-1">{resource.type || resource.sourceType || 'Resource'}</p>
+                </div>
+                <div>
+                  <h3 className="text-sm font-medium text-gray-600 uppercase tracking-wide">Publication Date</h3>
+                  <p className="text-gray-900 mt-1">{formatDateDMY(resource.DateOfPublication || resource.date)}</p>
+                </div>
+                {resource.authors && (
+                  <div>
+                    <h3 className="text-sm font-medium text-gray-600 uppercase tracking-wide">Authors</h3>
+                    <p className="text-gray-900 mt-1">{resource.authors}</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          </section>
+
+          {/* Tags */}
+          {resource.tags && resource.tags.length > 0 && (
+            <section className="space-y-4">
+              <h2 className="text-xl font-semibold text-gray-900">Keywords</h2>
+              <div className="flex flex-wrap gap-2">
+                {resource.tags.map((tag, index) => (
+                  <Badge key={index} variant="outline" className="bg-white hover:bg-gray-50 text-gray-700 border-gray-300">
+                    {tag}
                   </Badge>
-                  <h1 className={`${instrument_serif.className} text-3xl md:text-4xl font-normal text-gray-900 mb-4 leading-tight`}>
-                    {resource.title}
-                  </h1>
-                  
-                  {/* Metadata */}
-                  <div className="flex flex-wrap gap-4 text-sm text-gray-600 mb-6">
-                    {resource.authors && (
-                      <div className="flex items-center gap-2">
-                        <User className="size-4" />
-                        <span>{resource.authors}</span>
-                      </div>
-                    )}
-                    <div className="flex items-center gap-2">
-                      <Calendar className="size-4" />
-                      <span>{formatDateDMY(resource.DateOfPublication || resource.date)}</span>
-                    </div>
-                    {resource.location && (
-                      <div className="flex items-center gap-2">
-                        <MapPin className="size-4" />
-                        <span>{resource.location}</span>
-                      </div>
-                    )}
-                  </div>
-                </div>
+                ))}
+              </div>
+            </section>
+          )}
 
-                {/* Featured Image - Only show if we have a real external image */}
-                {(resource.image || ogImage) && !imageError && !resource.image?.startsWith('/') && !ogImage?.startsWith('/') && (
-                  <div className="mb-8">
-                    <div className="relative h-64 md:h-96 w-full rounded-lg overflow-hidden">
-                      {imageLoading && (
-                        <div className="absolute inset-0 bg-muted animate-pulse"></div>
-                      )}
-                      
-                      <Image
-                        src={resource.image || ogImage || ''}
-                        alt={resource.title}
-                        fill
-                        className="object-cover"
-                        priority
-                        sizes="(max-width: 768px) 100vw, (max-width: 1200px) 75vw, 60vw"
-                        onLoad={() => setImageLoading(false)}
-                        onError={() => {
-                          setImageError(true)
-                          setImageLoading(false)
-                        }}
-                      />
-                    </div>
-                  </div>
-                )}
+          {/* Source Link */}
+          {resource.linkToOriginalSource && (
+            <section className="pt-6 border-t">
+              <Link
+                href={resource.linkToOriginalSource}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-2 text-blue-600 hover:text-blue-800 font-medium"
+              >
+                <ExternalLink className="size-4" />
+                View Original Source
+              </Link>
+            </section>
+          )}
+        </article>
 
-                {/* Summary */}
-                <div className="mb-8">
-                  <h2 className="text-xl font-semibold mb-4 text-gray-900">Summary</h2>
-                  <div className="prose prose-gray max-w-none">
-                    <p className="text-gray-700 leading-relaxed text-base">
-                      {resource.summary}
-                    </p>
-                  </div>
-                </div>
+        {/* Companies Section */}
+        <section className="py-12 bg-white border-t border-gray-100">
+          <div className="max-w-4xl mx-auto px-6">
+            <div className="text-center mb-8">
+              <p className="text-sm text-gray-500 uppercase tracking-wide">As featured in</p>
+            </div>
+            <div className="flex items-center justify-center gap-8 md:gap-12 flex-wrap opacity-60 hover:opacity-80 transition-opacity">
+              {/* The Guardian */}
+              <div className="flex items-center justify-center h-8 text-gray-400">
+                <svg viewBox="0 0 120 30" className="h-6 fill-current">
+                  <text x="0" y="20" className="text-lg font-serif">The Guardian</text>
+                </svg>
+              </div>
 
-                {/* Key Findings Section */}
-                <div className="mb-8 p-6 bg-blue-50 rounded-lg border-l-4 border-blue-500">
-                  <h3 className="text-lg font-semibold mb-3 text-blue-900">Key Findings</h3>
-                  <div className="text-blue-800">
-                    <p>This resource provides valuable insights into {resource.theme?.toLowerCase() || 'prison reform'} and contributes to the broader understanding of correctional practices and policies.</p>
-                  </div>
-                </div>
+              {/* Bloomberg */}
+              <div className="flex items-center justify-center h-8 text-gray-400">
+                <svg viewBox="0 0 120 30" className="h-6 fill-current">
+                  <text x="0" y="20" className="text-lg font-sans font-medium">Bloomberg</text>
+                </svg>
+              </div>
 
-                {/* Tags */}
-                {resource.tags && resource.tags.length > 0 && (
-                  <div className="mb-8">
-                    <h3 className="text-lg font-semibold mb-3 text-gray-900">Tags</h3>
-                    <div className="flex flex-wrap gap-2">
-                      {resource.tags.map((tag, index) => (
-                        <Badge key={index} variant="outline" className="cursor-pointer hover:bg-gray-100">
-                          {tag}
-                        </Badge>
-                      ))}
-                    </div>
-                  </div>
-                )}
+              {/* Quotient */}
+              <div className="flex items-center justify-center h-8 text-gray-400">
+                <svg viewBox="0 0 120 30" className="h-6 fill-current">
+                  <text x="0" y="20" className="text-lg font-sans">Quotient</text>
+                </svg>
+              </div>
 
-                {/* Source Link */}
-                {resource.linkToOriginalSource && (
-                  <div className="mb-8">
-                    <Link 
-                      href={resource.linkToOriginalSource} 
-                      target="_blank" 
-                      rel="noopener noreferrer"
-                    >
-                      <Button className="bg-blue-600 hover:bg-blue-700">
-                        <ExternalLink className="size-4 mr-2" />
-                        View Original Source
-                      </Button>
-                    </Link>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
+              {/* Forbes */}
+              <div className="flex items-center justify-center h-8 text-gray-400">
+                <svg viewBox="0 0 120 30" className="h-6 fill-current">
+                  <text x="0" y="20" className="text-lg font-serif font-bold">Forbes</text>
+                </svg>
+              </div>
+
+              {/* Gizmodo */}
+              <div className="flex items-center justify-center h-8 text-gray-400">
+                <svg viewBox="0 0 120 30" className="h-6 fill-current">
+                  <text x="0" y="20" className="text-lg font-sans font-bold">GIZMODO</text>
+                </svg>
+              </div>
+            </div>
           </div>
+        </section>
+      </div>
 
-          {/* Sidebar */}
-          <div className="lg:col-span-1">
-            <Card className="bg-white mb-6">
-              <CardContent className="p-6">
-                <h3 className="font-semibold mb-4 text-gray-900">Resource Details</h3>
-                
-                <div className="space-y-4">
-                  <div>
-                    <Label className="text-sm font-medium text-gray-600">Source</Label>
-                    <p className="text-sm text-gray-900 mt-1">{resource.source}</p>
-                  </div>
-                  
-                  {resource.theme && (
-                    <div>
-                      <Label className="text-sm font-medium text-gray-600">Theme</Label>
-                      <Badge variant="secondary" className="mt-1">{resource.theme}</Badge>
-                    </div>
-                  )}
-                  
-                  <div>
-                    <Label className="text-sm font-medium text-gray-600">Type</Label>
-                    <p className="text-sm text-gray-900 mt-1">{resource.type || resource.sourceType || 'Resource'}</p>
-                  </div>
-                  
-                  {resource.keywords && (
-                    <div>
-                      <Label className="text-sm font-medium text-gray-600">Keywords</Label>
-                      <p className="text-sm text-gray-700 mt-1">{resource.keywords}</p>
-                    </div>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Author Info */}
-            <Card className="bg-white">
-              <CardContent className="p-6">
-                <h3 className="font-semibold mb-4 text-gray-900">About the Source</h3>
-                <div className="flex items-center gap-3 mb-3">
-                  <Avatar className="size-12">
-                    <AvatarImage src="https://github.com/evilrabbit.jpg" alt="Source" />
-                    <AvatarFallback className="bg-blue-100 text-blue-700">
-                      {(resource.source || 'S').charAt(0)}
-                    </AvatarFallback>
-                  </Avatar>
-                  <div>
-                    <p className="font-medium text-gray-900">{resource.source}</p>
-                    {resource.sourcePlatform && (
-                      <p className="text-sm text-gray-600">{resource.sourcePlatform}</p>
-                    )}
-                  </div>
-                </div>
-                <p className="text-sm text-gray-600">
-                  Trusted source providing research and insights on prison reform and correctional practices.
-                </p>
-              </CardContent>
-            </Card>
-          </div>
-        </div>
-
-        {/* Related Resources Section */}
-        {relatedResources.length > 0 && (
-          <div className="mt-12">
-            <h2 className="text-2xl font-bold mb-6 text-gray-900">Related Resources</h2>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      {/* Related Resources Section - Full Page Width */}
+      {relatedResources.length > 0 && (
+        <section className="w-3/4 mx-auto bg-gray-50 mt-1">
+          <div className="w-full px-8 py-12">
+            <h2 className="text-2xl font-semibold text-gray-900 mb-8">Related Resources</h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
               {relatedResources.map((relatedResource, index) => (
                 <Link key={relatedResource.id || index} href={`/resource/${relatedResource.id || encodeURIComponent(relatedResource.title)}`}>
-                  <Card className="bg-white hover:shadow-lg transition-shadow duration-200 h-full">
-                    <CardContent className="p-0 relative group overflow-hidden">
-                      <div className="h-48 w-full overflow-hidden">
-                        {relatedResource.image ? (
-                          <Image 
-                            src={relatedResource.image} 
-                            alt={relatedResource.title} 
-                            width={400} 
-                            height={200} 
-                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
-                            onError={(e) => {
-                              const target = e.target as HTMLImageElement;
-                              target.src = getFallbackImage(relatedResource?.theme, relatedResource?.tags)
-                            }}
-                          />
-                        ) : (
-                          <Image 
-                            src={getFallbackImage(relatedResource?.theme, relatedResource?.tags)} 
-                            alt="Default" 
-                            width={400} 
-                            height={200} 
-                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200" 
-                          />
-                        )}
-                      </div>
-                      
-                      <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-200" />
-                      
-                      <div className="absolute top-4 left-4 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
-                        <Badge variant="secondary" className="text-xs">
-                          <FileText className="size-3 mr-1" />
+                  <article className="relative h-64 rounded-lg overflow-hidden group hover:scale-105 transition-transform duration-200">
+                    {/* Background Image */}
+                    <div className="absolute inset-0">
+                      {relatedResource.image ? (
+                        <Image
+                          src={relatedResource.image}
+                          alt={relatedResource.title}
+                          fill
+                          className="object-cover"
+                          sizes="(max-width: 768px) 100vw, (max-width: 1024px) 50vw, 33vw"
+                          onError={(e) => {
+                            const target = e.target as HTMLImageElement;
+                            target.src = getFallbackImage(relatedResource?.theme, relatedResource?.tags)
+                          }}
+                        />
+                      ) : (
+                        <Image
+                          src={getFallbackImage(relatedResource?.theme, relatedResource?.tags)}
+                          alt="Default"
+                          fill
+                          className="object-cover"
+                          sizes="(max-width: 768px) 100vw, (max-width: 1024px) 50vw, 33vw"
+                        />
+                      )}
+                    </div>
+
+                    {/* Dark Overlay */}
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent"></div>
+
+                    {/* Content Overlay */}
+                    <div className="absolute inset-0 p-6 flex flex-col justify-between">
+                      {/* Top: Type Badge */}
+                      <div className="flex justify-start">
+                        <Badge className="bg-white/20 text-white border-white/30 backdrop-blur-sm text-xs">
                           {relatedResource.type || 'Resource'}
                         </Badge>
                       </div>
-                      
-                      <div className="absolute bottom-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
-                        <div className="flex gap-2">
-                          <Button size="sm" variant="secondary" className="rounded-full bg-white/90 hover:bg-white">
-                            <Bookmark className="size-3" />
-                          </Button>
-                          <Button size="sm" variant="secondary" className="rounded-full bg-white/90 hover:bg-white">
-                            <Send className="size-3" />
-                          </Button>
-                        </div>
-                      </div>
-                    </CardContent>
-                    
-                    <CardFooter className="p-4">
-                      <div className="w-full">
-                        <div className="flex items-center gap-2 mb-2">
-                          <Badge variant="outline" className="text-xs">
-                            {relatedResource.theme || 'General'}
-                          </Badge>
-                        </div>
-                        <h3 className="font-semibold text-gray-900 line-clamp-2 mb-2 leading-tight">
+
+                      {/* Bottom: Title and metadata */}
+                      <div className="space-y-3">
+                        <h3 className="text-white font-semibold text-lg leading-tight line-clamp-3">
                           {relatedResource.title}
                         </h3>
-                        <div className="flex items-center gap-1.5 text-xs text-gray-600">
-                          <Avatar className="size-4">
-                            <AvatarFallback className="text-xs bg-gray-100">
-                              {(relatedResource.authors || relatedResource.source || 'A').charAt(0)}
-                            </AvatarFallback>
-                          </Avatar>
+
+                        <div className="flex items-center gap-2 text-white/80 text-sm">
                           <span>{relatedResource.source}</span>
-                          <span aria-hidden>•</span>
+                          <span>•</span>
                           <span>{formatDateDMY(relatedResource.DateOfPublication || relatedResource.date)}</span>
                         </div>
+
+                        {relatedResource.theme && (
+                          <Badge variant="outline" className="bg-blue-600/20 text-blue-200 border-blue-400/30 text-xs">
+                            {relatedResource.theme}
+                          </Badge>
+                        )}
                       </div>
-                    </CardFooter>
-                  </Card>
+                    </div>
+                  </article>
                 </Link>
               ))}
             </div>
           </div>
-        )}
-      </div>
+        </section>
+      )}
     </div>
   )
 }
