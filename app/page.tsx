@@ -1,9 +1,7 @@
 "use client"
+import AllThemeSections from "@/components/AllThemeSections";
 import Featured from "@/components/Featured";
 import MoreTopics from "@/components/MoreTopics";
-import OverCrowding from "@/components/OverCrowding";
-import PodcastCards from "@/components/PodcastCards";
-import RulesAndFramework from "@/components/RulesAndFramework";
 import ShareCard from "@/components/ShareCard";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -139,11 +137,8 @@ export default function Home() {
       </section>
 
       <Featured />
-      <RulesAndFramework themeIndex={1} />
-      <PodcastCards startIndex={0} themeIndex={2} />
+      <AllThemeSections />
       <ShareCard />
-      <OverCrowding themeIndex={0} />
-      <PodcastCards startIndex={4} themeIndex={3} />
       <MoreTopics />
     </div>
   );
