@@ -313,7 +313,80 @@ export async function getFeaturedResources(limit: number = 5): Promise<PrisonRes
 
 
 
-// Method 4: Keyword/BM25 Search
+// Method 4: Keywords Search - searches for multiple keywords in content
+export async function getResourcesByKeywords(keywords: string[], limit: number = 20): Promise<PrisonResource[]> {
+  try {
+    const client = getClient();
+    const fields = await getSchemaFields();
+    const fieldSelection = fields && fields.length > 0
+      ? `${fields} _additional { id score }`
+      : `source_title summary sourceType keywords sourcePlatform authors dateOfPublication image linkToOriginalSource subTheme location theme _additional { id score }`;
+
+    if (!keywords || keywords.length === 0) {
+      return [];
+    }
+
+    // Build where conditions for keywords - search in title, summary, and keywords fields
+    const keywordConditions: WhereFilter[] = [];
+
+    keywords.forEach(keyword => {
+      const trimmedKeyword = keyword.trim();
+      if (trimmedKeyword) {
+        keywordConditions.push({
+          operator: 'Or',
+          operands: [
+            { path: ['source_title'], operator: 'Like', valueText: `*${trimmedKeyword}*` },
+            { path: ['summary'], operator: 'Like', valueText: `*${trimmedKeyword}*` },
+            { path: ['keywords'], operator: 'Like', valueText: `*${trimmedKeyword}*` },
+            { path: ['theme'], operator: 'Like', valueText: `*${trimmedKeyword}*` },
+            { path: ['subTheme'], operator: 'Like', valueText: `*${trimmedKeyword}*` }
+          ]
+        });
+      }
+    });
+
+    if (keywordConditions.length === 0) {
+      return [];
+    }
+
+    // Combine all keyword conditions with OR (match any keyword)
+    const whereClause: WhereFilter = keywordConditions.length === 1
+      ? keywordConditions[0]
+      : {
+          operator: 'Or',
+          operands: keywordConditions
+        };
+
+    // Add timeout wrapper for the query
+    const queryPromise = client.graphql
+      .get()
+      .withClassName('Docs')
+      .withFields(fieldSelection)
+      .withWhere(whereClause)
+      .withLimit(limit)
+      .do();
+
+    const queryTimeoutPromise = new Promise((_, reject) =>
+      setTimeout(() => reject(new Error('GraphQL query timeout')), 15000)
+    );
+
+    const res = await Promise.race([queryPromise, queryTimeoutPromise]) as WeaviateGetResponse;
+    const items = (res?.data?.Get?.Docs ?? []) as unknown[];
+
+    return items.map((item, index) => mapWeaviateItemToPrisonResource(item, index));
+  } catch (error) {
+    console.error('Error in keywords search:', error);
+
+    // Check if it's a timeout or connection error
+    if (error instanceof Error && (error.message.includes('timeout') || error.message.includes('Connect Timeout'))) {
+      console.log('Weaviate connection timeout ' + error);
+    }
+
+    return [];
+  }
+}
+
+// Method 5: Keyword/BM25 Search (original single keyword search)
 export async function searchResourcesByKeyword(query: string, limit: number = 5): Promise<PrisonResource[]> {
   try {
     const client = getClient();
