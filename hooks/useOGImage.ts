@@ -42,14 +42,19 @@ export const useOGImage = ({
       return
     }
 
-    // Check if we already have this result cached
-    if (ogImageResults.has(url)) {
-      const cachedResult = ogImageResults.get(url)
-      setOgImage(cachedResult)
-      setIsLoading(false)
-      setHasError(cachedResult === null)
-      return
-    }
+    // Suppose ogImageResults is typed like this:
+const ogImageResults = new Map<string, string | null>();
+
+// Check if we already have this result cached
+if (ogImageResults.has(url)) {
+  const cachedResult = ogImageResults.get(url)!; // non-null assertion (safe after .has)
+
+  setOgImage(cachedResult ?? undefined); // if null => undefined for React state
+  setIsLoading(false);
+  setHasError(cachedResult == null); // true if null OR undefined
+  return;
+}
+
 
     // Check if request is already in progress
     if (ogImageCache.has(url)) {
