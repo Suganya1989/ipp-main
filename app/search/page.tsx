@@ -123,7 +123,8 @@ const SearchContent = (): React.JSX.Element => {
     const [relevantTopics, setRelevantTopics] = useState<string[]>([])
     const [selectedSourceTypes, setSelectedSourceTypes] = useState<string[]>([])
     const [relevantSourceTypes, setRelevantSourceTypes] = useState<string[]>([])
-   
+    const [filtersInitialized, setFiltersInitialized] = useState<boolean>(false)
+
     const searchParams = useSearchParams()
     const query = searchParams.get("query") || ""
 
@@ -201,57 +202,63 @@ const SearchContent = (): React.JSX.Element => {
               }))
               setResults(normalized)
 
-              // Extract and rank tags by frequency, show top 15 unique tags (case insensitive)
-              const allResultTags = normalized.flatMap(resource => resource.tags || [])
-              const tagFrequency = allResultTags.reduce((acc, tag) => {
-                if (tag && tag.trim()) { // Filter out empty/null tags
-                  const cleanTag = tag.trim()
-                  const lowerKey = cleanTag.toLowerCase()
-                  if (!acc[lowerKey]) {
-                    acc[lowerKey] = { count: 0, displayName: cleanTag }
+              // Only update filter options on the first load, keep them constant after that
+              if (!filtersInitialized) {
+                // Extract and rank tags by frequency, show top 15 unique tags (case insensitive)
+                const allResultTags = normalized.flatMap(resource => resource.tags || [])
+                const tagFrequency = allResultTags.reduce((acc, tag) => {
+                  if (tag && tag.trim()) { // Filter out empty/null tags
+                    const cleanTag = tag.trim()
+                    const lowerKey = cleanTag.toLowerCase()
+                    if (!acc[lowerKey]) {
+                      acc[lowerKey] = { count: 0, displayName: cleanTag }
+                    }
+                    acc[lowerKey].count += 1
                   }
-                  acc[lowerKey].count += 1
-                }
-                return acc
-              }, {} as Record<string, { count: number, displayName: string }>)
+                  return acc
+                }, {} as Record<string, { count: number, displayName: string }>)
 
-              const sortedTags = Object.values(tagFrequency)
-                .sort((a, b) => b.count - a.count)
-                .slice(0, 15)
-                .map(item => item.displayName)
+                const sortedTags = Object.values(tagFrequency)
+                  .sort((a, b) => b.count - a.count)
+                  .slice(0, 15)
+                  .map(item => item.displayName)
 
-              setRelevantTags(sortedTags)
+                setRelevantTags(sortedTags)
 
-              // Extract unique source types from search results
-              const allSourceTypes = normalized.map(resource => resource.sourceType).filter((sourceType): sourceType is string => Boolean(sourceType))
-              const uniqueSourceTypes = [...new Set(allSourceTypes)]
-              setRelevantSourceTypes(uniqueSourceTypes)
+                // Extract unique source types from search results
+                const allSourceTypes = normalized.map(resource => resource.sourceType).filter((sourceType): sourceType is string => Boolean(sourceType))
+                const uniqueSourceTypes = [...new Set(allSourceTypes)]
+                setRelevantSourceTypes(uniqueSourceTypes)
 
-              // Extract and rank themes from search results
-              const allThemes = normalized.map(resource => resource.theme).filter((theme): theme is string => Boolean(theme))
-              const themeFrequency = allThemes.reduce((acc, theme) => {
-                if (theme && theme.trim()) {
-                  const cleanTheme = theme.trim()
-                  const lowerKey = cleanTheme.toLowerCase()
-                  if (!acc[lowerKey]) {
-                    acc[lowerKey] = { count: 0, displayName: cleanTheme }
+                // Extract and rank themes from search results
+                const allThemes = normalized.map(resource => resource.theme).filter((theme): theme is string => Boolean(theme))
+                const themeFrequency = allThemes.reduce((acc, theme) => {
+                  if (theme && theme.trim()) {
+                    const cleanTheme = theme.trim()
+                    const lowerKey = cleanTheme.toLowerCase()
+                    if (!acc[lowerKey]) {
+                      acc[lowerKey] = { count: 0, displayName: cleanTheme }
+                    }
+                    acc[lowerKey].count += 1
                   }
-                  acc[lowerKey].count += 1
-                }
-                return acc
-              }, {} as Record<string, { count: number, displayName: string }>)
+                  return acc
+                }, {} as Record<string, { count: number, displayName: string }>)
 
-              const sortedThemes = Object.values(themeFrequency)
-                .sort((a, b) => b.count - a.count)
-                .slice(0, 10)
-                .map(item => item.displayName)
+                const sortedThemes = Object.values(themeFrequency)
+                  .sort((a, b) => b.count - a.count)
+                  .slice(0, 10)
+                  .map(item => item.displayName)
 
-              setRelevantTopics(sortedThemes)
+                setRelevantTopics(sortedThemes)
+
+                // Mark filters as initialized so they won't change again
+                setFiltersInitialized(true)
+              }
             })
             .catch((err) => { if (mounted && err?.name !== 'AbortError') setResults([]) })
             .finally(() => { if (mounted) setLoading(false) })
         return () => { mounted = false; controller.abort() }
-    }, [query, selectedTopics, selectedTypes, selectedTags, selectedSourceTypes, setResults, setLoading])
+    }, [query, selectedTopics, selectedTypes, selectedTags, selectedSourceTypes, filtersInitialized, setResults, setLoading])
 
     const onToggleType = (type: TypeKey) => {
         setSelectedTypes(prev => {
