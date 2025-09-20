@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardFooter } from '@/components/ui/card'
 import { Label } from '@/components/ui/label'
 import { Separator } from '@/components/ui/separator'
-import { Bookmark, FileText, Pencil, Send } from 'lucide-react'
+import { Bookmark, FileText, Pencil, Send, MessageSquare, Eye } from 'lucide-react'
 import { formatDateDMY } from '@/lib/utils'
 
 import { Instrument_Serif } from 'next/font/google'
@@ -23,15 +23,15 @@ const instrument_serif = Instrument_Serif({
 const topicTitles = [
     "All Topics",
     "Standards",
-    "Economy",
     "Overcrowding",
-    "Disparities",
-    "Reintegration",
     "Health",
-    "Innovation",
+    "Reintegration",
+    "Economy",
     "Justice",
     "Rights",
     "Technology",
+    "Innovation",
+    "Disparities",
     "Stories",
     "Case Laws",
     "Comparative",
@@ -52,29 +52,83 @@ type Resource = {
     linkToOriginalSource?: string;
 }
 
+type TopicCount = {
+    name: string;
+    count: number;
+}
+
 const TopicsPageContent = () => {
     const searchParams = useSearchParams()
     const theme = searchParams.get('theme')
     const [resources, setResources] = useState<Resource[]>([])
     const [loading, setLoading] = useState(false)
     const [selectedTheme, setSelectedTheme] = useState<string>(theme || 'All Topics')
+    const [topicCounts, setTopicCounts] = useState<TopicCount[]>([])
+    const [totalResults, setTotalResults] = useState(0)
 
     useEffect(() => {
+        // Load topic counts for standard topics on component mount
+        fetchTopicCounts()
+
         if (theme) {
             setSelectedTheme(theme)
             fetchResourcesByTheme(theme)
         }
     }, [theme])
 
+    const fetchTopicCounts = async () => {
+        try {
+            // Initialize with standard topics
+            const standardTopics = topicTitles.map(title => ({ name: title, count: 0 }))
+            setTopicCounts(standardTopics)
+
+            // Fetch counts for each standard topic
+            const countsPromises = topicTitles.slice(1).map(async (topic) => { // Skip "All Topics"
+                try {
+                    const response = await fetch(`/api/theme-resources?theme=${encodeURIComponent(topic)}&limit=1`)
+                    const data = await response.json()
+                    const count = Array.isArray(data.resources) ? data.resources.length : 0
+
+                    // For a more accurate count, we could make another call to get the total
+                    // but for now we'll use a rough estimate
+                    const estimateResponse = await fetch(`/api/theme-resources?theme=${encodeURIComponent(topic)}&limit=100`)
+                    const estimateData = await estimateResponse.json()
+                    const estimatedCount = Array.isArray(estimateData.resources) ? estimateData.resources.length : 0
+
+                    return { name: topic, count: estimatedCount }
+                } catch (error) {
+                    console.error(`Error fetching count for ${topic}:`, error)
+                    return { name: topic, count: 0 }
+                }
+            })
+
+            const topicCounts = await Promise.all(countsPromises)
+            const totalCount = topicCounts.reduce((sum, topic) => sum + topic.count, 0)
+
+            setTopicCounts([
+                { name: 'All Topics', count: totalCount },
+                ...topicCounts
+            ])
+        } catch (error) {
+            console.error('Error fetching topic counts:', error)
+            // Fallback to standard topics without counts
+            setTopicCounts(topicTitles.map(title => ({ name: title, count: 0 })))
+        }
+    }
+
     const fetchResourcesByTheme = async (themeName: string) => {
-        if (themeName === 'All Topics') return
-        
+        if (themeName === 'All Topics') {
+            setResources([])
+            setTotalResults(0)
+            return
+        }
+
         setLoading(true)
         try {
-            const response = await fetch(`/api/search?themes=${encodeURIComponent(themeName)}&limit=15`)
+            const response = await fetch(`/api/theme-resources?theme=${encodeURIComponent(themeName)}&limit=20`)
             const data = await response.json()
-            const resourcesData = Array.isArray(data.data) ? data.data : []
-            
+            const resourcesData = Array.isArray(data.resources) ? data.resources : []
+
             // Set initial resources without default images
             type UnknownResource = Resource & { ['date of publication']?: string }
             const initialResources = (resourcesData as UnknownResource[]).map((item) => ({
@@ -82,8 +136,9 @@ const TopicsPageContent = () => {
                 DateOfPublication: item.dateOfPublication  || item.date,
                 image: item.image || undefined // Don't set default image initially
             }))
-            
+
             setResources(initialResources)
+            setTotalResults(initialResources.length)
             setLoading(false) // Complete loading immediately after setting resources
             
             // Fetch OG images in the background without blocking
@@ -164,173 +219,134 @@ const TopicsPageContent = () => {
         setSelectedTheme(themeName)
         if (themeName === 'All Topics') {
             setResources([])
+            setTotalResults(0)
         } else {
             fetchResourcesByTheme(themeName)
         }
     }
 
     return (
-        <div className='flex flex-col items-center justify-center py-12'>
-            <div className='w-11/12 md:w-10/12 space-y-8'>
-                <div className="min-h-[70svh] md:min-h-[50vh] flex flex-col gap-10 justify-center items-center">
-                    {/* Main heading with icon */}
-                    <div className="max-w-2xl flex flex-col items-center gap-6">
-                        <h1 className={`${instrument_serif.className} text-5xl md:text-6xl font-light text-brand-primary-900 mb-4 text-center`}>
-                            Your platform for
-                            <br />
-                            prison reform & research{" "}
-                        </h1>
-                        <div className="flex flex-wrap items-center justify-center gap-1.5 md:gap-3">
-                            {topicTitles.map((title) => (
-                                <Button 
-                                    key={title} 
-                                    variant={selectedTheme === title ? "default" : "outline"} 
-                                    size="sm" 
-                                    className="rounded-full px-4 text-brand-primary-900 shadow-none"
-                                    onClick={() => handleThemeClick(title)}
-                                >
-                                    {title}
-                                </Button>
-                            ))}
+        <div className="flex min-h-screen bg-gray-50">
+            {/* Left Sidebar */}
+            <div className="w-64 bg-white shadow-sm p-6 fixed h-full overflow-y-auto">
+                <h1 className="text-xl font-semibold text-brand-primary-900 mb-6">Explore Topics</h1>
+
+                <div className="space-y-2">
+                    {topicCounts.map((topic) => (
+                        <button
+                            key={topic.name}
+                            onClick={() => handleThemeClick(topic.name)}
+                            className={`w-full flex items-center justify-between p-3 rounded-lg text-left transition-colors ${
+                                selectedTheme === topic.name
+                                    ? 'bg-brand-primary-900 text-white'
+                                    : 'hover:bg-gray-100 text-gray-700'
+                            }`}
+                        >
+                            <span className="text-sm font-medium">{topic.name}</span>
+                            <span className={`text-xs px-2 py-1 rounded-full ${
+                                selectedTheme === topic.name
+                                    ? 'bg-white/20 text-white'
+                                    : 'bg-gray-200 text-gray-600'
+                            }`}>
+                                {topic.count}
+                            </span>
+                        </button>
+                    ))}
+                </div>
+            </div>
+
+            {/* Main Content */}
+            <div className="flex-1 ml-64 p-6">
+                {/* Header */}
+                <div className="mb-6">
+                    <div className="flex items-center justify-between">
+                        <div>
+                            <h2 className="text-lg font-semibold text-brand-primary-900">
+                                {selectedTheme === 'All Topics' ? 'All Topics' : selectedTheme}
+                            </h2>
+                            {selectedTheme !== 'All Topics' && (
+                                <p className="text-sm text-gray-600 mt-1">
+                                    {totalResults} Results
+                                </p>
+                            )}
                         </div>
-                    </div>
-                    {/* Trending section */}
-                    <div className="flex flex-col md:flex-row md:items-center gap-3.5">
-
-
                     </div>
                 </div>
-                <Separator />
-                {selectedTheme !== 'All Topics' && (
-                    <div className='space-y-6'>
-                        <div className='flex items-center gap-1'>
-                            <Label className='text-lg font-semibold text-brand-primary-900'>{selectedTheme}</Label>
-                            <Badge className='bg-brand-secondary-200 text-primary rounded-full'>{resources.length} Resources</Badge>
+
+                {/* Content Area */}
+                {selectedTheme === 'All Topics' ? (
+                    <div className="flex items-center justify-center h-96">
+                        <div className="text-center">
+                            <h3 className="text-lg font-medium text-gray-900 mb-2">Select a topic to explore</h3>
+                            <p className="text-gray-600">Choose from the topics in the sidebar to view related resources</p>
                         </div>
-                        {loading ? (
-                            <div className='grid grid-cols-1 md:grid-cols-3 gap-6'>
-                                {[...Array(6)].map((_, idx) => (
-                                    <Card key={idx} className="border-0 shadow-none p-0 h-96">
-                                        <CardContent className="p-0 rounded-xl group overflow-hidden h-full bg-muted flex flex-col items-center animate-pulse">
-                                            <div className='relative h-3/5 w-full bg-gray-300 rounded-t-xl'></div>
-                                            <div className="w-[95%] flex flex-col justify-evenly h-2/5 space-y-3 p-2">
-                                                <div className="h-4 bg-gray-300 rounded w-1/3"></div>
-                                                <div className="h-6 bg-gray-300 rounded w-full"></div>
-                                                <div className="h-4 bg-gray-300 rounded w-2/3"></div>
-                                            </div>
-                                        </CardContent>
-                                    </Card>
-                                ))}
+                    </div>
+                ) : loading ? (
+                    <div className="space-y-4">
+                        {[...Array(5)].map((_, idx) => (
+                            <div key={idx} className="bg-white rounded-lg p-4 shadow-sm border">
+                                <div className="flex gap-4">
+                                    <div className="w-24 h-24 bg-gray-300 rounded animate-pulse"></div>
+                                    <div className="flex-1 space-y-3">
+                                        <div className="h-4 bg-gray-300 rounded w-3/4 animate-pulse"></div>
+                                        <div className="h-3 bg-gray-300 rounded w-1/2 animate-pulse"></div>
+                                        <div className="h-3 bg-gray-300 rounded w-1/4 animate-pulse"></div>
+                                    </div>
+                                </div>
                             </div>
-                        ) : (
-                            <div className='grid grid-cols-1 md:grid-cols-3 gap-6'>
-                                {resources.map((resource, idx) => {
-                                    if (idx % 2 !== 0) {
-                                        return (
-                                            <Link key={resource.id || idx} href={`/resource/${resource.id || encodeURIComponent(resource.title)}`}>
-                                                <Card className="border-0 shadow-none p-0">
-                                                <CardContent className="p-0 relative group overflow-hidden">
-                                                    <Image 
-                                                        src={resource.image || "/Rules1.png"} 
-                                                        alt="Featured" 
-                                                        width={400} 
-                                                        height={400} 
-                                                        className="w-full h-96 object-cover rounded-xl"
-                                                        onError={(e) => {
-                                                            const target = e.target as HTMLImageElement;
-                                                            target.src = "/Rules1.png";
-                                                        }}
-                                                    />
-                                            <div className="absolute w-full h-full bg-gradient-to-b from-zinc-700/10 to-zinc-900/60 left-0 top-0 justify-between py-4 items-center flex flex-col transition-all duration-200 rounded-xl">
-                                                <div className="w-11/12 flex justify-between h-fit md:group-hover:opacity-100 md:opacity-0 transition-opacity">
-                                                    <Badge variant="secondary" className="px-2.5 py-1.5 space-x-px h-fit">
-                                                        <FileText className="size-3.5" strokeWidth={1.5} />
-                                                        <span>Report</span>
+                        ))}
+                    </div>
+                ) : (
+                    <div className="space-y-4">
+                        {resources.map((resource, idx) => (
+                            <Link key={resource.id || idx} href={`/resource/${resource.id || encodeURIComponent(resource.title)}`}>
+                                <Card className="bg-white hover:shadow-md transition-shadow border rounded-lg p-4">
+                                    <div className="flex gap-4">
+                                        <div className="w-24 h-24 flex-shrink-0">
+                                            <Image
+                                                src={resource.image || "/Rules1.png"}
+                                                alt={resource.title}
+                                                width={96}
+                                                height={96}
+                                                className="w-full h-full object-cover rounded"
+                                                onError={(e) => {
+                                                    const target = e.target as HTMLImageElement;
+                                                    target.src = "/Rules1.png";
+                                                }}
+                                            />
+                                        </div>
+                                        <div className="flex-1 min-w-0">
+                                            <div className="flex items-start justify-between">
+                                                <div className="flex-1">
+                                                    <Badge variant="secondary" className="mb-2 text-xs">
+                                                        {resource.theme || 'ARTICLE'}
                                                     </Badge>
-                                                    <div className="flex flex-col items-center gap-3">
-                                                        <Button className="rounded-full bg-primary/50 backdrop-blur-xs text-white border-none" variant="outline" size="icon" >
-                                                            <Send className="size-4" strokeWidth={1.5} />
-                                                        </Button>
-                                                        <Button className="rounded-full bg-primary/50 backdrop-blur-xs text-white border-none" variant="outline" size="icon" >
-                                                            <Bookmark className="size-4" strokeWidth={1.5} />
-                                                        </Button>
-                                                        <Button className="rounded-full bg-primary/50 backdrop-blur-xs text-white border-none" variant="outline" size="icon" >
-                                                            <Pencil className="size-4" strokeWidth={1.5} />
-                                                        </Button>
+                                                    <h3 className="font-semibold text-brand-primary-900 mb-2 line-clamp-2">
+                                                        {resource.title}
+                                                    </h3>
+                                                    <p className="text-sm text-gray-600 mb-3 line-clamp-2">
+                                                        {resource.summary}
+                                                    </p>
+                                                    <div className="flex items-center gap-4 text-xs text-gray-500">
+                                                        <span>{resource.source || 'Source'}</span>
+                                                        <span>•</span>
+                                                        <span>{formatDateDMY(resource.dateOfPublication || resource.date)}</span>
                                                     </div>
                                                 </div>
-                                                <div className="w-11/12 flex flex-col justify-between h-fit space-y-3">
-                                                    <Label className="text-muted uppercase text-sm">{resource.theme || 'Theme'}</Label>
-                                                    <h2 className="text-base font-semibold text-white">{resource.title}</h2>
-                                                    <div className="flex items-center gap-1.5 text-xs text-white">
-                                                        <h4>{resource.source || 'Source'}</h4>
-                                                        <span aria-hidden className="text-white/80">•</span>
-                                                        <p>{formatDateDMY(resource.dateOfPublication || resource.date)}</p>
-                                                    </div>
+                                                <div className="flex items-center gap-2 ml-4">
+                                                    <Button variant="ghost" size="sm">
+                                                        <MessageSquare className="w-4 h-4" />
+                                                    </Button>
+                                                    <Button variant="ghost" size="sm">
+                                                        <Eye className="w-4 h-4" />
+                                                    </Button>
                                                 </div>
                                             </div>
-                                        </CardContent>
-                                        <CardFooter className="flex flex-col items-start p-0 space-y-3">
-
-                                        </CardFooter>
-                                    </Card>
-                                </Link>
-                                )
-                            } else {
-                                return (
-                                    <Link key={resource.id || idx} href={`/resource/${resource.id || encodeURIComponent(resource.title)}`}>
-                                        <Card className="border-0 shadow-none p-0 h-96">
-                                        <CardContent className="p-0 rounded-xl group overflow-hidden h-full bg-muted flex flex-col items-center">
-                                            <div className='relative h-3/5 w-full'>
-                                                <Image 
-                                                    src={resource.image || "/Rules1.png"} 
-                                                    alt="Featured" 
-                                                    width={400} 
-                                                    height={400} 
-                                                    className="w-full object-cover rounded-t-xl h-full"
-                                                    onError={(e) => {
-                                                        const target = e.target as HTMLImageElement;
-                                                        target.src = "/Rules1.png";
-                                                    }}
-                                                />
-                                                <div className="absolute w-full h-full bg-gradient-to-b from-zinc-700/10 to-zinc-900/10 left-0 top-0 justify-between py-4 items-center flex flex-col transition-all duration-200 rounded-t-xl">
-                                                    <div className="w-11/12 flex justify-between h-fit md:group-hover:opacity-100 md:opacity-0 transition-opacity">
-                                                        <Badge variant="secondary" className="px-2.5 py-1.5 space-x-px h-fit">
-                                                            <FileText className="size-3.5" strokeWidth={1.5} />
-                                                            <span>Report</span>
-                                                        </Badge>
-                                                        <div className="flex flex-col items-center gap-3">
-                                                            <Button className="rounded-full bg-primary/50 backdrop-blur-xs text-white border-none" variant="outline" size="icon" >
-                                                                <Send className="size-4" strokeWidth={1.5} />
-                                                            </Button>
-                                                            <Button className="rounded-full bg-primary/50 backdrop-blur-xs text-white border-none" variant="outline" size="icon" >
-                                                                <Bookmark className="size-4" strokeWidth={1.5} />
-                                                            </Button>
-                                                            <Button className="rounded-full bg-primary/50 backdrop-blur-xs text-white border-none" variant="outline" size="icon" >
-                                                                <Pencil className="size-4" strokeWidth={1.5} />
-                                                            </Button>
-                                                        </div>
-                                                    </div>
-
-                                                </div>
-                                            </div>
-                                            <div className="w-[95%] flex flex-col justify-evenly h-2/5 space-y-3 p-2">
-                                                <Label className="text-muted-foreground uppercase text-sm">{resource.theme || 'Theme'}</Label>
-                                                <h2 className="text-base font-semibold">{resource.title}</h2>
-                                                <div className="flex items-center gap-1.5 text-xs">
-                                                    <h4>{resource.source || 'Source'}</h4>
-                                                    <span aria-hidden className="text-muted-foreground">•</span>
-                                                    <p>{formatDateDMY(resource.dateOfPublication || resource.date)}</p>
-                                                </div>
-                                            </div>
-                                        </CardContent>
-                                    </Card>
-                                    </Link>
-                                )
-                            }
-                        })}
-                            </div>
-                        )}
+                                        </div>
+                                    </div>
+                                </Card>
+                            </Link>
+                        ))}
                     </div>
                 )}
             </div>

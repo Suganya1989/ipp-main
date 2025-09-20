@@ -400,7 +400,7 @@ const AllThemeSections = () => {
                 setThemeSections(prev => [...prev, updatedSection])
                 setLoadedSectionCount(prev => prev + 1)
 
-                // Prefetch OG images for resources that don't have them
+                // Start OG image fetch for resources that don't have them (background)
                 const visibleResources = section.resources.slice(0, section.layout === 'two' ? 2 : 3)
                 visibleResources.forEach((resource: Resource) => {
                   if (resource.linkToOriginalSource && !resource.image) {
@@ -470,13 +470,13 @@ const AllThemeSections = () => {
           console.log(`Processing theme ${i + 1}/${themes.length}: "${theme.name}" (layout: ${layout}, need: ${resourceCount})`)
 
           try {
-            // Fetch more resources initially to have enough for navigation
-            const searchUrl = `/api/search?themes=${encodeURIComponent(theme.name)}&limit=10`
-            console.log(`Fetching: ${searchUrl}`)
+            // Fetch more resources initially to have enough for navigation using Weaviate getResourcesByTheme
+            const themeResourcesUrl = `/api/theme-resources?theme=${encodeURIComponent(theme.name)}&limit=10`
+            console.log(`Fetching: ${themeResourcesUrl}`)
 
-            const resourcesRes = await fetch(searchUrl)
+            const resourcesRes = await fetch(themeResourcesUrl)
             const resourcesJson = await resourcesRes.json()
-            const allResourcesForTheme: Resource[] = Array.isArray(resourcesJson.data) ? resourcesJson.data : []
+            const allResourcesForTheme: Resource[] = Array.isArray(resourcesJson.resources) ? resourcesJson.resources : []
 
             console.log(`  Found ${allResourcesForTheme.length} resources for "${theme.name}"`)
 
@@ -515,14 +515,13 @@ const AllThemeSections = () => {
               processedCount++
               console.log(`  ✅ Added and displayed section for "${theme.name}" with ${resources.length} visible resources, ${allResourcesForTheme.length} total`)
 
-              // Fetch images for newly visible resources
-              setTimeout(() => {
-                resources.forEach((resource: Resource) => {
-                  if (resource.linkToOriginalSource && !resource.image) {
-                    memoizedFetchImageForSection(resource)
-                  }
-                })
-              }, 50)
+              // Fetch images for newly visible resources in background (non-blocking)
+              resources.forEach((resource: Resource) => {
+                if (resource.linkToOriginalSource && !resource.image) {
+                  // Start OG image fetch immediately in background
+                  memoizedFetchImageForSection(resource)
+                }
+              })
 
               // Small delay between sections to prevent overwhelming the UI
               await new Promise(resolve => setTimeout(resolve, 100))
@@ -589,7 +588,7 @@ const AllThemeSections = () => {
           : section
       ))
 
-      // Fetch images for newly visible resources
+      // Start OG image fetch for newly visible resources (background)
       nextResources.forEach((resource: Resource) => {
         if (resource?.linkToOriginalSource) {
           memoizedFetchImageForSection(resource)
@@ -631,7 +630,7 @@ const AllThemeSections = () => {
           : section
       ))
 
-      // Fetch images for newly visible resources
+      // Start OG image fetch for newly visible resources (background)
       prevResources.forEach((resource: Resource) => {
         if (resource?.linkToOriginalSource) {
           memoizedFetchImageForSection(resource)
