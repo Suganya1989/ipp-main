@@ -227,23 +227,28 @@ const AllThemeSections = () => {
       if (!item?.linkToOriginalSource || !item.id) return
 
       // Check OG image cache first
-      const ogCache: OGImageCache = pageCache.get(OG_IMAGE_CACHE_KEY) || {}
-      const cachedImage = ogCache[item.id]
+      const ogCache =
+      (pageCache.get(OG_IMAGE_CACHE_KEY) as OGImageCache | undefined) ?? ({} as OGImageCache);
+     const cachedImage = ogCache[item.id]
 
-      if (cachedImage && Date.now() - cachedImage.timestamp < OG_IMAGE_CACHE_DURATION) {
-        console.log(`Using cached OG image for ${item.id}`)
-        if (cachedImage.imageUrl) {
-          setThemeSections(prev => prev.map(section => ({
+     if (cachedImage && Date.now() - cachedImage.timestamp < OG_IMAGE_CACHE_DURATION) {
+      console.log(`Using cached OG image for ${item.id}`);
+      // Guard ensures we only assign a string (not null)
+      if (cachedImage.imageUrl ?? false) {
+        setThemeSections(prev =>
+          prev.map(section => ({
             ...section,
             resources: section.resources.map(resource =>
               resource.id === item.id
-                ? { ...resource, image: cachedImage.imageUrl }
+                // Ensure `image` stays `string | undefined`
+                ? { ...resource, image: cachedImage.imageUrl ?? resource.image }
                 : resource
-            )
-          })))
-        }
-        return
+            ),
+          }))
+        );
       }
+    }
+    
 
       try {
         const response = await fetch('/api/og-image-async', {
@@ -347,8 +352,8 @@ const AllThemeSections = () => {
     async function loadAllThemes(forceRefresh = false) {
       try {
         // Check cache first
-        const cached: CachedData | null = pageCache.get(CACHE_KEY)
-        const cacheAge = cached ? Date.now() - cached.timestamp : Infinity
+        const cached = pageCache.get(CACHE_KEY) as CachedData | undefined
+        const cacheAge = cached?.timestamp ? Date.now() - cached.timestamp : Infinity
         const isCacheValid = cached && cacheAge < CACHE_DURATION
         const shouldRevalidate = cached && cacheAge > REVALIDATE_THRESHOLD
 
@@ -376,7 +381,8 @@ const AllThemeSections = () => {
             setLoading(false)
 
             // Load cached OG images immediately for visible sections only
-            const ogCache: OGImageCache = pageCache.get(OG_IMAGE_CACHE_KEY) || {}
+            const ogCache: OGImageCache =
+            (pageCache.get(OG_IMAGE_CACHE_KEY) as OGImageCache | undefined) ?? {};
             let hasUpdates = false
 
             const updatedSections = initialSections.map((section: ThemeSection) => ({
