@@ -1,3 +1,4 @@
+
 "use client"
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
@@ -34,6 +35,22 @@ interface ThemeSection {
 }
 
 // Global cache for page data
+// Type definitions for cache
+interface CachedData {
+  data: ThemeSection[];
+  timestamp: number;
+  version: string;
+  totalSections: number;
+  totalResources: number;
+}
+
+interface OGImageCache {
+  [key: string]: {
+    imageUrl: string | null;
+    timestamp: number;
+  };
+}
+
 const CACHE_KEY = 'allThemeSections'
 const CACHE_DURATION = 2 * 60 * 60 * 1000 // 2 hours
 const REVALIDATE_THRESHOLD = 30 * 60 * 1000 // 30 minutes - trigger background revalidation
@@ -49,25 +66,6 @@ const ResourceCard = ({ resource, layout, onImageLoad }: {
   const [isVisible, setIsVisible] = useState(false)
   const [ogImageLoaded, setOgImageLoaded] = useState(false)
   const cardRef = useRef<HTMLDivElement>(null)
-
-  // Intersection Observer for lazy loading
-  useEffect(() => {
-    const observer = new IntersectionObserver(
-      ([entry]) => {
-        if (entry.isIntersecting && !isVisible) {
-          setIsVisible(true)
-          loadOGImageIfNeeded()
-        }
-      },
-      { threshold: 0.1, rootMargin: '100px' }
-    )
-
-    if (cardRef.current) {
-      observer.observe(cardRef.current)
-    }
-
-    return () => observer.disconnect()
-  }, [])
 
   const loadOGImageIfNeeded = useCallback(async () => {
     if (!resource.image && resource.linkToOriginalSource && !ogImageLoaded && resource.id) {
@@ -94,6 +92,25 @@ const ResourceCard = ({ resource, layout, onImageLoad }: {
     }
   }, [resource, ogImageLoaded, onImageLoad])
 
+  // Intersection Observer for lazy loading
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting && !isVisible) {
+          setIsVisible(true)
+          loadOGImageIfNeeded()
+        }
+      },
+      { threshold: 0.1, rootMargin: '100px' }
+    )
+
+    if (cardRef.current) {
+      observer.observe(cardRef.current)
+    }
+
+    return () => observer.disconnect()
+  }, [isVisible, loadOGImageIfNeeded])
+
   const imageUrl = resource.image || getFallbackImage(resource?.theme, resource?.tags)
 
   if (layout === 'two') {
@@ -103,18 +120,24 @@ const ResourceCard = ({ resource, layout, onImageLoad }: {
           <Card className="border-0 shadow-none p-0 h-96">
             <CardContent className="p-0 rounded-xl group overflow-hidden h-full bg-muted flex flex-col items-center">
               <div className="relative h-3/5 w-full">
-                <Image
-                  src={imageUrl}
-                  alt={resource.title}
-                  width={400}
-                  height={400}
-                  className="w-full object-cover rounded-t-xl h-full"
-                  loading={isVisible ? "eager" : "lazy"}
-                  onError={(e) => {
-                    const target = e.target as HTMLImageElement;
-                    target.src = getFallbackImage(resource?.theme, resource?.tags)
-                  }}
-                />
+                {isVisible ? (
+                  <Image
+                    src={imageUrl}
+                    alt={resource.title}
+                    width={400}
+                    height={400}
+                    className="w-full object-cover rounded-t-xl h-full"
+                    loading="lazy"
+                    onError={(e) => {
+                      const target = e.target as HTMLImageElement;
+                      target.src = getFallbackImage(resource?.theme, resource?.tags)
+                    }}
+                  />
+                ) : (
+                  <div className="w-full h-full bg-muted rounded-t-xl flex items-center justify-center">
+                    <div className="w-16 h-16 bg-muted-foreground/20 rounded animate-pulse"></div>
+                  </div>
+                )}
               </div>
               <div className="w-[95%] flex flex-col justify-evenly h-2/5 space-y-3 p-2">
                 <Label className="text-muted-foreground uppercase text-sm">{resource.theme || 'Theme'}</Label>
@@ -138,18 +161,24 @@ const ResourceCard = ({ resource, layout, onImageLoad }: {
       <Link href={`/resource/${resource.id || encodeURIComponent(resource.title)}`}>
         <Card className="border-0 shadow-none p-0">
           <CardContent className="p-0 relative group overflow-hidden">
-            <Image
-              src={imageUrl}
-              alt={resource.title}
-              width={400}
-              height={400}
-              className="w-full h-96 object-cover rounded-xl"
-              loading={isVisible ? "eager" : "lazy"}
-              onError={(e) => {
-                const target = e.target as HTMLImageElement;
-                target.src = getFallbackImage(resource?.theme, resource?.tags)
-              }}
-            />
+            {isVisible ? (
+              <Image
+                src={imageUrl}
+                alt={resource.title}
+                width={400}
+                height={400}
+                className="w-full h-96 object-cover rounded-xl"
+                loading="lazy"
+                onError={(e) => {
+                  const target = e.target as HTMLImageElement;
+                  target.src = getFallbackImage(resource?.theme, resource?.tags)
+                }}
+              />
+            ) : (
+              <div className="w-full h-96 bg-muted rounded-xl flex items-center justify-center">
+                <div className="w-16 h-16 bg-muted-foreground/20 rounded animate-pulse"></div>
+              </div>
+            )}
             <div className="absolute w-full h-full bg-gradient-to-b from-zinc-700/10 to-zinc-900/60 left-0 top-0 justify-between py-4 items-center flex flex-col transition-all duration-200 rounded-xl">
               <div className="w-11/12 flex justify-between h-fit md:group-hover:opacity-100 md:opacity-0 transition-opacity">
                 <Badge variant="secondary" className="px-2.5 py-1.5 space-x-px h-fit">
@@ -178,6 +207,11 @@ const AllThemeSections = () => {
   const [themeSections, setThemeSections] = useState<ThemeSection[]>([])
   const [loading, setLoading] = useState(true)
   const [sectionStates, setSectionStates] = useState<Record<string, { currentIndex: number; hasMore: boolean }>>({})
+  const [loadedSectionCount, setLoadedSectionCount] = useState(0)
+  const [allThemeData, setAllThemeData] = useState<ThemeSection[]>([])
+  const [isLoadingMoreSections, setIsLoadingMoreSections] = useState(false)
+  const observerRef = useRef<IntersectionObserver | null>(null)
+  const loadMoreTriggerRef = useRef<HTMLDivElement>(null)
 
   // Handle OG image updates from lazy loading
   const handleImageLoad = useCallback((resourceId: string, imageUrl: string) => {
@@ -193,7 +227,7 @@ const AllThemeSections = () => {
       if (!item?.linkToOriginalSource || !item.id) return
 
       // Check OG image cache first
-      const ogCache = pageCache.get(OG_IMAGE_CACHE_KEY) || {}
+      const ogCache: OGImageCache = pageCache.get(OG_IMAGE_CACHE_KEY) || {}
       const cachedImage = ogCache[item.id]
 
       if (cachedImage && Date.now() - cachedImage.timestamp < OG_IMAGE_CACHE_DURATION) {
@@ -268,13 +302,52 @@ const AllThemeSections = () => {
       }
     }, [])
 
+  // Progressive section loading function
+  const loadMoreSections = useCallback(() => {
+    if (isLoadingMoreSections || loadedSectionCount >= allThemeData.length) return
+
+    setIsLoadingMoreSections(true)
+
+    setTimeout(() => {
+      const nextBatch = allThemeData.slice(loadedSectionCount, loadedSectionCount + 2) // Load 2 sections at a time
+      setThemeSections(prev => [...prev, ...nextBatch])
+      setLoadedSectionCount(prev => prev + nextBatch.length)
+      setIsLoadingMoreSections(false)
+    }, 300) // Small delay to prevent overwhelming
+  }, [allThemeData, loadedSectionCount, isLoadingMoreSections])
+
+  // Set up intersection observer for progressive loading
+  useEffect(() => {
+    if (!loadMoreTriggerRef.current) return
+
+    observerRef.current = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting && !isLoadingMoreSections && loadedSectionCount < allThemeData.length) {
+          loadMoreSections()
+        }
+      },
+      { threshold: 0.1, rootMargin: '200px' }
+    )
+
+    observerRef.current.observe(loadMoreTriggerRef.current)
+
+    return () => {
+      if (observerRef.current) {
+        observerRef.current.disconnect()
+      }
+    }
+  }, [loadMoreSections, isLoadingMoreSections, loadedSectionCount, allThemeData.length])
+
+  // Move fetchImageForSection outside of the main effect to fix dependency warning
+  const memoizedFetchImageForSection = useCallback(fetchImageForSection, [fetchImageForSection])
+
   useEffect(() => {
     let mounted = true
 
     async function loadAllThemes(forceRefresh = false) {
       try {
         // Check cache first
-        const cached = pageCache.get(CACHE_KEY)
+        const cached: CachedData | null = pageCache.get(CACHE_KEY)
         const cacheAge = cached ? Date.now() - cached.timestamp : Infinity
         const isCacheValid = cached && cacheAge < CACHE_DURATION
         const shouldRevalidate = cached && cacheAge > REVALIDATE_THRESHOLD
@@ -282,7 +355,12 @@ const AllThemeSections = () => {
         if (isCacheValid && !forceRefresh) {
           console.log('Loading from cache')
           if (mounted) {
-            setThemeSections(cached.data)
+            setAllThemeData(cached.data)
+
+            // Load first 3 sections immediately
+            const initialSections = cached.data.slice(0, 3)
+            setThemeSections(initialSections)
+            setLoadedSectionCount(initialSections.length)
 
             // Initialize section states from cached data (both 2 and 3 resource sections)
             const initialStates: Record<string, { currentIndex: number; hasMore: boolean }> = {}
@@ -297,11 +375,11 @@ const AllThemeSections = () => {
 
             setLoading(false)
 
-            // Load cached OG images immediately
-            const ogCache = pageCache.get(OG_IMAGE_CACHE_KEY) || {}
+            // Load cached OG images immediately for visible sections only
+            const ogCache: OGImageCache = pageCache.get(OG_IMAGE_CACHE_KEY) || {}
             let hasUpdates = false
 
-            const updatedSections = cached.data.map((section: ThemeSection) => ({
+            const updatedSections = initialSections.map((section: ThemeSection) => ({
               ...section,
               resources: section.resources.map((resource: Resource) => {
                 const cachedOgImage = ogCache[resource.id!]
@@ -318,13 +396,13 @@ const AllThemeSections = () => {
               setThemeSections(updatedSections)
             }
 
-            // Prefetch OG images for visible resources
+            // Prefetch OG images for visible resources only
             setTimeout(() => {
-              cached.data.forEach((section: ThemeSection) => {
+              initialSections.forEach((section: ThemeSection) => {
                 const visibleResources = section.resources.slice(0, section.layout === 'two' ? 2 : 3)
                 visibleResources.forEach((resource: Resource) => {
                   if (resource.linkToOriginalSource && !resource.image) {
-                    fetchImageForSection(resource)
+                    memoizedFetchImageForSection(resource)
                   }
                 })
               })
@@ -413,7 +491,12 @@ const AllThemeSections = () => {
         console.log('Created sections:', sections.map(s => `${s.theme} (${s.resources.length} resources, ${s.layout})`))
 
         if (mounted) {
-          setThemeSections(sections)
+          setAllThemeData(sections)
+
+          // Load first 3 sections immediately
+          const initialSections = sections.slice(0, 3)
+          setThemeSections(initialSections)
+          setLoadedSectionCount(initialSections.length)
           setLoading(false)
 
           // Initialize section states for navigation (both 2 and 3 resource sections)
@@ -449,7 +532,7 @@ const AllThemeSections = () => {
     return () => {
       mounted = false
     }
-  }, [])
+  }, [memoizedFetchImageForSection])
 
   const handleNext = (sectionTheme: string, allResources: Resource[], layout: 'two' | 'three') => {
     const currentState = sectionStates[sectionTheme]
@@ -478,7 +561,7 @@ const AllThemeSections = () => {
       // Fetch images for newly visible resources
       nextResources.forEach((resource: Resource) => {
         if (resource?.linkToOriginalSource) {
-          fetchImageForSection(resource)
+          memoizedFetchImageForSection(resource)
         }
       })
     } else {
@@ -520,7 +603,7 @@ const AllThemeSections = () => {
       // Fetch images for newly visible resources
       prevResources.forEach((resource: Resource) => {
         if (resource?.linkToOriginalSource) {
-          fetchImageForSection(resource)
+          memoizedFetchImageForSection(resource)
         }
       })
     }
@@ -691,11 +774,29 @@ const AllThemeSections = () => {
 
   return (
     <>
-      {themeSections.map((section, index) => (
+      {themeSections.map((section) => (
         <React.Fragment key={section.theme}>
           {section.layout === 'two' ? renderTwoResourceLayout(section) : renderThreeResourceLayout(section)}
         </React.Fragment>
       ))}
+
+      {/* Loading trigger for progressive loading */}
+      {loadedSectionCount < allThemeData.length && (
+        <div ref={loadMoreTriggerRef} className="w-full flex justify-center py-8">
+          {isLoadingMoreSections ? (
+            <div className="w-11/12 md:w-10/12 space-y-6">
+              <div className="h-6 bg-muted rounded w-1/4 animate-pulse"></div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {[...Array(2)].map((_, cardIdx) => (
+                  <div key={cardIdx} className="h-96 bg-muted rounded-xl animate-pulse"></div>
+                ))}
+              </div>
+            </div>
+          ) : (
+            <div className="text-sm text-muted-foreground">Loading more sections...</div>
+          )}
+        </div>
+      )}
     </>
   )
 }
