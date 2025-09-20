@@ -358,14 +358,12 @@ const AllThemeSections = () => {
         const shouldRevalidate = cached && cacheAge > REVALIDATE_THRESHOLD
 
         if (isCacheValid && !forceRefresh) {
-          console.log('Loading from cache')
+          console.log('Loading from cache progressively')
           if (mounted) {
             setAllThemeData(cached.data)
-
-            // Load first 3 sections immediately
-            const initialSections = cached.data.slice(0, 3)
-            setThemeSections(initialSections)
-            setLoadedSectionCount(initialSections.length)
+            setLoading(false)
+            setThemeSections([]) // Clear existing sections for progressive load
+            setLoadedSectionCount(0)
 
             // Initialize section states from cached data (both 2 and 3 resource sections)
             const initialStates: Record<string, { currentIndex: number; hasMore: boolean }> = {}
@@ -378,41 +376,39 @@ const AllThemeSections = () => {
             })
             setSectionStates(initialStates)
 
-            setLoading(false)
-
-            // Load cached OG images immediately for visible sections only
+            // Load cached OG images cache
             const ogCache: OGImageCache =
             (pageCache.get(OG_IMAGE_CACHE_KEY) as OGImageCache | undefined) ?? {};
-            let hasUpdates = false
 
-            const updatedSections = initialSections.map((section: ThemeSection) => ({
-              ...section,
-              resources: section.resources.map((resource: Resource) => {
-                const cachedOgImage = ogCache[resource.id!]
-                if (cachedOgImage && Date.now() - cachedOgImage.timestamp < OG_IMAGE_CACHE_DURATION && cachedOgImage.imageUrl) {
-                  hasUpdates = true
-                  return { ...resource, image: cachedOgImage.imageUrl }
+            // Load sections progressively from cache
+            cached.data.forEach((section: ThemeSection, index: number) => {
+              setTimeout(() => {
+                if (!mounted) return
+
+                // Apply cached OG images for this section
+                const updatedSection = {
+                  ...section,
+                  resources: section.resources.map((resource: Resource) => {
+                    const cachedOgImage = ogCache[resource.id!]
+                    if (cachedOgImage && Date.now() - cachedOgImage.timestamp < OG_IMAGE_CACHE_DURATION && cachedOgImage.imageUrl) {
+                      return { ...resource, image: cachedOgImage.imageUrl }
+                    }
+                    return resource
+                  })
                 }
-                return resource
-              })
-            }))
 
-            if (hasUpdates) {
-              console.log('Applied cached OG images')
-              setThemeSections(updatedSections)
-            }
+                setThemeSections(prev => [...prev, updatedSection])
+                setLoadedSectionCount(prev => prev + 1)
 
-            // Prefetch OG images for visible resources only
-            setTimeout(() => {
-              initialSections.forEach((section: ThemeSection) => {
+                // Prefetch OG images for resources that don't have them
                 const visibleResources = section.resources.slice(0, section.layout === 'two' ? 2 : 3)
                 visibleResources.forEach((resource: Resource) => {
                   if (resource.linkToOriginalSource && !resource.image) {
                     memoizedFetchImageForSection(resource)
                   }
                 })
-              })
-            }, 50)
+              }, index * 150) // Stagger by 150ms per section
+            })
 
             // Trigger background revalidation if cache is getting stale
             if (shouldRevalidate) {
@@ -452,8 +448,19 @@ const AllThemeSections = () => {
 
         console.log('Dynamic themes from search results:', themes.map(t => `${t.name} (${t.count})`))
 
-        // Process each theme
+        // Process each theme progressively - show them as they load
         const sections: ThemeSection[] = []
+        let processedCount = 0
+
+        // Initialize section states storage
+        const allSectionStates: Record<string, { currentIndex: number; hasMore: boolean }> = {}
+
+        // Set loading to false immediately so we can show progressive content
+        if (mounted) {
+          setLoading(false)
+          setThemeSections([]) // Clear existing sections for fresh load
+          setLoadedSectionCount(0)
+        }
 
         for (let i = 0; i < themes.length; i++) { // Process all available themes
           const theme = themes[i]
@@ -477,14 +484,48 @@ const AllThemeSections = () => {
             const resources = allResourcesForTheme.slice(0, resourceCount)
 
             // Show themes even if they have fewer resources than ideal
-            if (resources.length > 0) {
-              sections.push({
+            if (resources.length > 0 && mounted) {
+              const newSection: ThemeSection = {
                 theme: theme.name,
                 resources, // Initial visible resources
                 allResources: allResourcesForTheme, // Store all for navigation
                 layout
-              })
-              console.log(`  ✅ Added section for "${theme.name}" with ${resources.length} visible resources, ${allResourcesForTheme.length} total`)
+              }
+
+              sections.push(newSection)
+
+              // Add this section immediately to the displayed sections
+              setThemeSections(prev => [...prev, newSection])
+
+              // Update section states for navigation
+              const resourcesPerPage = layout === 'two' ? 2 : 3
+              allSectionStates[theme.name] = {
+                currentIndex: 0,
+                hasMore: allResourcesForTheme.length > resourcesPerPage
+              }
+
+              setSectionStates(prev => ({
+                ...prev,
+                [theme.name]: {
+                  currentIndex: 0,
+                  hasMore: allResourcesForTheme.length > resourcesPerPage
+                }
+              }))
+
+              processedCount++
+              console.log(`  ✅ Added and displayed section for "${theme.name}" with ${resources.length} visible resources, ${allResourcesForTheme.length} total`)
+
+              // Fetch images for newly visible resources
+              setTimeout(() => {
+                resources.forEach((resource: Resource) => {
+                  if (resource.linkToOriginalSource && !resource.image) {
+                    memoizedFetchImageForSection(resource)
+                  }
+                })
+              }, 50)
+
+              // Small delay between sections to prevent overwhelming the UI
+              await new Promise(resolve => setTimeout(resolve, 100))
             } else {
               console.log(`  ❌ No resources found for theme: ${theme.name}`)
             }
@@ -498,23 +539,7 @@ const AllThemeSections = () => {
 
         if (mounted) {
           setAllThemeData(sections)
-
-          // Load first 3 sections immediately
-          const initialSections = sections.slice(0, 3)
-          setThemeSections(initialSections)
-          setLoadedSectionCount(initialSections.length)
-          setLoading(false)
-
-          // Initialize section states for navigation (both 2 and 3 resource sections)
-          const initialStates: Record<string, { currentIndex: number; hasMore: boolean }> = {}
-          sections.forEach(section => {
-            const resourcesPerPage = section.layout === 'two' ? 2 : 3
-            initialStates[section.theme] = {
-              currentIndex: 0,
-              hasMore: section.allResources.length > resourcesPerPage
-            }
-          })
-          setSectionStates(initialStates)
+          setLoadedSectionCount(sections.length)
 
           // Cache the data with metadata
           pageCache.set(CACHE_KEY, {
