@@ -92,7 +92,7 @@ const instrument_serif = Instrument_Serif({
     subsets: ["latin"],
     weight: ["400"]
 })
-type TypeKey = "Report" | "Article" | "Judgement" | "Video" | "Podcast"
+type TypeKey = string
 
 type Resource = {
     id?: string
@@ -119,19 +119,23 @@ const SearchContent = (): React.JSX.Element => {
     const [loading, setLoading] = useState<boolean>(true)
     const [topics, setTopics] = useState<string[]>([])
     const [tags, setTags] = useState<string[]>([])
+    const [types, setTypes] = useState<string[]>([])
+    const [relevantTypes, setRelevantTypes] = useState<string[]>([])
     const [relevantTags, setRelevantTags] = useState<string[]>([])
     const [relevantTopics, setRelevantTopics] = useState<string[]>([])
     const [selectedSourceTypes, setSelectedSourceTypes] = useState<string[]>([])
     const [relevantSourceTypes, setRelevantSourceTypes] = useState<string[]>([])
+    const [filtersInitialized, setFiltersInitialized] = useState<boolean>(false)
    
     const searchParams = useSearchParams()
     const query = searchParams.get("query") || ""
 
-    // Load topics and tags
+    // Load topics, tags, and types
     useEffect(() => {
         let mounted = true
         const themesController = new AbortController()
         const catsController = new AbortController()
+        const typesController = new AbortController()
         Promise.all([
             fetch('/api/themes', { signal: themesController.signal })
                 .then(r => r.ok ? r.json() : { data: [] })
@@ -139,19 +143,27 @@ const SearchContent = (): React.JSX.Element => {
             fetch('/api/tags', { signal: catsController.signal })
                 .then(r => r.ok ? r.json() : { data: [] })
                 .catch(() => ({ data: ['Policy', 'Research', 'News', 'Case Studies', 'Reports'] })),
-        ]).then(([themesRes, categoriesRes]) => {
+            fetch('/api/types', { signal: typesController.signal })
+                .then(r => r.ok ? r.json() : { data: [] })
+                .catch(() => ({ data: ['Report', 'Article', 'Judgement', 'Video', 'Podcast'] })),
+        ]).then(([themesRes, categoriesRes, typesRes]) => {
             if (!mounted) return
-            const tps = Array.isArray(themesRes?.data) && themesRes.data.length > 0 
-                ? themesRes.data.map((t: { name: string }) => t.name) 
+            const tps = Array.isArray(themesRes?.data) && themesRes.data.length > 0
+                ? themesRes.data.map((t: { name: string }) => t.name)
                 : ['General', 'Legal', 'Reform', 'Statistics', 'Education']
             const tgs = Array.isArray(categoriesRes?.data) && categoriesRes.data.length > 0
                 ? categoriesRes.data.map((c: { name: string }) => c.name)
                 : ['Policy', 'Research', 'News', 'Case Studies', 'Reports']
+                console.log('types fetched ',typesRes)
+            const tys = Array.isArray(typesRes?.data) && typesRes.data.length > 0
+                ? typesRes.data
+                : ['Report', 'Article', 'Judgement', 'Video', 'Podcast']
             setTopics(tps)
             setTags(tgs)
+            setTypes(tys)
             // No need to set default selection for multi-select
         })
-        return () => { mounted = false; themesController.abort(); catsController.abort() }
+        return () => { mounted = false; themesController.abort(); catsController.abort(); typesController.abort() }
     }, [])
 
     // Fetch results when filters change
@@ -222,6 +234,13 @@ const SearchContent = (): React.JSX.Element => {
 
               setRelevantTags(sortedTags)
 
+              // Extract unique types from search results (only on first load)
+              if (!filtersInitialized) {
+                const allTypes = normalized.map(resource => resource.type).filter((type): type is string => Boolean(type))
+                const uniqueTypes = [...new Set(allTypes)]
+                setRelevantTypes(uniqueTypes)
+              }
+
               // Extract unique source types from search results
               const allSourceTypes = normalized.map(resource => resource.sourceType).filter((sourceType): sourceType is string => Boolean(sourceType))
               const uniqueSourceTypes = [...new Set(allSourceTypes)]
@@ -247,6 +266,11 @@ const SearchContent = (): React.JSX.Element => {
                 .map(item => item.displayName)
 
               setRelevantTopics(sortedThemes)
+
+              // Mark filters as initialized so types won't change again
+              if (!filtersInitialized) {
+                setFiltersInitialized(true)
+              }
             })
             .catch((err) => { if (mounted && err?.name !== 'AbortError') setResults([]) })
             .finally(() => { if (mounted) setLoading(false) })
@@ -263,6 +287,17 @@ const SearchContent = (): React.JSX.Element => {
             }
             return newSet
         })
+    }
+
+    // Helper function to get icon for type
+    const getTypeIcon = (type: string) => {
+        const lowerType = type.toLowerCase()
+        if (lowerType.includes('report')) return <FileText className="size-4" strokeWidth={1.5} />
+        if (lowerType.includes('article') || lowerType.includes('news')) return <Newspaper className="size-4" strokeWidth={1.5} />
+        if (lowerType.includes('judgment') || lowerType.includes('judgement') || lowerType.includes('court')) return <Gavel className="size-4" strokeWidth={1.5} />
+        if (lowerType.includes('video')) return <Video className="size-4" strokeWidth={1.5} />
+        if (lowerType.includes('podcast') || lowerType.includes('audio')) return <Mic2 className="size-4" strokeWidth={1.5} />
+        return <FileText className="size-4" strokeWidth={1.5} /> // Default icon
     }
 
     const toggleTopic = (topic: string, checked: boolean) => {
@@ -365,36 +400,19 @@ const SearchContent = (): React.JSX.Element => {
                   <section className="space-y-3">
                     <h3 className="text-sm font-medium text-muted-foreground">Types</h3>
                     <div className="grid grid-cols-2 gap-3">
-                      <TypeButton
-                        active={selectedTypes.has("Report")}
-                        onClick={() => onToggleType("Report")}
-                        label="Reports"
-                        icon={<FileText className="size-4" strokeWidth={1.5} />}
-                      />
-                      <TypeButton
-                        active={selectedTypes.has("Article")}
-                        onClick={() => onToggleType("Article")}
-                        label="Article"
-                        icon={<Newspaper className="size-4" strokeWidth={1.5} />}
-                      />
-                      <TypeButton
-                        active={selectedTypes.has("Judgement")}
-                        onClick={() => onToggleType("Judgement")}
-                        label="Judgement"
-                        icon={<Gavel className="size-4" strokeWidth={1.5} />}
-                      />
-                      <TypeButton
-                        active={selectedTypes.has("Video")}
-                        onClick={() => onToggleType("Video")}
-                        label="Video"
-                        icon={<Video className="size-4" strokeWidth={1.5} />}
-                      />
-                      <TypeButton
-                        active={selectedTypes.has("Podcast")}
-                        onClick={() => onToggleType("Podcast")}
-                        label="Podcast"
-                        icon={<Mic2 className="size-4" strokeWidth={1.5} />}
-                      />
+                      {relevantTypes.length === 0 ? (
+                        <div className="col-span-2 text-sm text-muted-foreground">Loading types...</div>
+                      ) : (
+                        relevantTypes.map((type) => (
+                          <TypeButton
+                            key={type}
+                            active={selectedTypes.has(type)}
+                            onClick={() => onToggleType(type)}
+                            label={type}
+                            icon={getTypeIcon(type)}
+                          />
+                        ))
+                      )}
                     </div>
                   </section>
 
@@ -491,36 +509,19 @@ const SearchContent = (): React.JSX.Element => {
                   <section className="space-y-3">
                     <h3 className="text-sm font-medium text-muted-foreground">Types</h3>
                     <div className="grid grid-cols-2 gap-3">
-                      <TypeButton
-                        active={selectedTypes.has("Report")}
-                        onClick={() => onToggleType("Report")}
-                        label="Reports"
-                        icon={<FileText className="size-4" strokeWidth={1.5} />}
-                      />
-                      <TypeButton
-                        active={selectedTypes.has("Article")}
-                        onClick={() => onToggleType("Article")}
-                        label="Article"
-                        icon={<Newspaper className="size-4" strokeWidth={1.5} />}
-                      />
-                      <TypeButton
-                        active={selectedTypes.has("Judgement")}
-                        onClick={() => onToggleType("Judgement")}
-                        label="Judgement"
-                        icon={<Gavel className="size-4" strokeWidth={1.5} />}
-                      />
-                      <TypeButton
-                        active={selectedTypes.has("Video")}
-                        onClick={() => onToggleType("Video")}
-                        label="Video"
-                        icon={<Video className="size-4" strokeWidth={1.5} />}
-                      />
-                      <TypeButton
-                        active={selectedTypes.has("Podcast")}
-                        onClick={() => onToggleType("Podcast")}
-                        label="Podcast"
-                        icon={<Mic2 className="size-4" strokeWidth={1.5} />}
-                      />
+                      {relevantTypes.length === 0 ? (
+                        <div className="col-span-2 text-sm text-muted-foreground">Loading types...</div>
+                      ) : (
+                        relevantTypes.map((type) => (
+                          <TypeButton
+                            key={type}
+                            active={selectedTypes.has(type)}
+                            onClick={() => onToggleType(type)}
+                            label={type}
+                            icon={getTypeIcon(type)}
+                          />
+                        ))
+                      )}
                     </div>
                   </section>
 

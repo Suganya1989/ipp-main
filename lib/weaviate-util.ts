@@ -175,14 +175,14 @@ function mapWeaviateItemToPrisonResource(item: unknown, index: number): PrisonRe
   const id = String(addl?.id ?? rec.uuid ?? Math.random().toString(36).substr(2, 9));
   const title = String((rec.source_title ?? props?.source_title ?? 'Untitled Resource'));
   const summary = String((rec.summary ?? rec.description ?? props?.summary ?? 'No summary available'));
-  const type = mapSourceTypeToDisplayType(rec.sourceType ?? props?.sourceType);
+  const type = mapSourceTypeToDisplayType(rec.sourceType ?? rec.source_type ?? props?.sourceType ?? props?.source_type);
   const tags = parseKeywords((rec.keywords as string | string[] | undefined) ?? (props?.keywords as string | string[] | undefined) ?? '')
     .map(k => k.trim());
   const source = String((rec.sourcePlatform ?? rec.authors ?? props?.sourcePlatform ?? props?.authors ?? 'Unknown Source'));
   const date = formatDate(rec.dateOfPublication ?? props?.dateOfPublication);
   const image = typeof rec.image === 'string' && rec.image ? rec.image
     : (typeof (rec.thumbnailUrl as unknown) === 'string' && (rec.thumbnailUrl as unknown as string)) || undefined;
-  const sourceType = String(rec.sourceType ?? props?.sourceType ?? '');
+  const sourceType = String(rec.sourceType ?? rec.source_type ?? props?.sourceType ?? props?.source_type ?? '');
   const sourcePlatform = String(rec.sourcePlatform ?? props?.sourcePlatform ?? '');
   const authors = String(rec.authors ?? props?.authors ?? '');
   const linkToOriginalSource = link ?? '';
@@ -765,7 +765,60 @@ export async function getTagsWithCounts(): Promise<Category[]> {
   }
 }
 
-// Method 7: Get all themes with resource counts
+// Method 7: Get all types from database
+export async function getTypes(): Promise<string[]> {
+  try {
+    const client = getClient();
+    const fields = await getSchemaFields();
+    const fieldSelection = fields && fields.length > 0
+      ? `${fields} _additional { id }`
+      : `sourceType _additional { id }`;
+
+    // Get all resources to extract types
+    const res = await client.graphql
+      .get()
+      .withClassName('Docs')
+      .withFields(fieldSelection)
+      .withLimit(1000) // Get a large number to capture all types
+      .do();
+
+    type DocLite = {
+      sourceType?: unknown;
+      source_type?: unknown;
+      properties?: {
+        sourceType?: unknown;
+        source_type?: unknown;
+      }
+    };
+    const resources = ((res as WeaviateGetResponse)?.data?.Get?.Docs ?? []) as DocLite[];
+
+    // Extract unique types
+    const typesSet = new Set<string>();
+
+    resources.forEach((resource: DocLite) => {
+      const sourceType = resource.sourceType ??
+                        resource.source_type ??
+                        resource.properties?.sourceType ??
+                        resource.properties?.source_type;
+      if (sourceType) {
+        const typeStr = String(sourceType).trim();
+        if (typeStr && typeStr !== 'null' && typeStr !== 'undefined') {
+          typesSet.add(typeStr);
+        }
+      }
+    });
+
+    const types = Array.from(typesSet).sort();
+    console.log('Types from database:', types);
+    return types;
+
+  } catch (error) {
+    console.error('Error fetching types from Weaviate:', error);
+    return [];
+  }
+}
+
+// Method 8: Get all themes with resource counts
 export async function getThemesWithCounts(): Promise<Category[]> {
   try {
     const client = getClient();
@@ -816,16 +869,13 @@ export async function getThemesWithCounts(): Promise<Category[]> {
 
 // Helper functions
 function mapSourceTypeToDisplayType(sourceType: unknown): string {
-  if (!sourceType) return 'Report';
-  
-  const type = String(sourceType).trim().toLowerCase();
-  if (type.includes('report')) return 'Report';
-  if (type.includes('article') || type.includes('journal')) return 'Article';
-  if (type.includes('judgment') || type.includes('court')) return 'Judgment';
-  if (type.includes('video') || type.includes('documentary')) return 'Video';
-  if (type.includes('podcast') || type.includes('audio')) return 'Podcast';
-  
-  return 'Report'; // Default fallback
+  if (!sourceType) return 'Other';
+
+  // Return the actual source type as-is, just cleaned up
+  const type = String(sourceType).trim();
+
+  // Capitalize first letter for better display
+  return type.charAt(0).toUpperCase() + type.slice(1);
 }
 
 function parseKeywords(keywords: unknown): string[] {
