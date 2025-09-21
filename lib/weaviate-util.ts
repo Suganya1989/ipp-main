@@ -735,17 +735,22 @@ export async function getTagsWithCounts(): Promise<Category[]> {
       const tags = parseKeywords(keywords);
       
       tags.forEach(tag => {
-        if (tag && tag.trim() && tag !== 'null' && tag !== 'undefined') {
+        if (tag && tag.trim() && tag !== 'null' && tag !== 'undefined' && !tag.includes('.')) {
           const tagStr = tag.trim();
           tagCounts.set(tagStr, (tagCounts.get(tagStr) || 0) + 1);
         }
       });
     });
 
+    // Helper function to capitalize first letter
+    const capitalizeFirst = (str: string): string => {
+      return str.charAt(0).toUpperCase() + str.slice(1);
+    };
+
     // Convert to Category array and sort by count
     const tags: Category[] = Array.from(tagCounts.entries())
       .map(([tag, count]) => ({
-        name: tag,
+        name: capitalizeFirst(tag),
         count: count,
         href: `/tag/${encodeURIComponent(tag.toLowerCase().replace(/\s+/g, '-'))}`
       }))

@@ -194,7 +194,7 @@ const Featured = () => {
       <div className="w-full md:w-[45%] space-y-6">
         <div className="flex items-center gap-1 text-muted-foreground">
           <Zap className="size-4" strokeWidth={1.5} />
-          <h3>Trending</h3>
+          <h3>In focus</h3>
         </div>
         <div className="flex flex-col gap-6">
           {loading && (
@@ -216,19 +216,19 @@ const Featured = () => {
             </>
           )}
           {!loading && trending.map((t) => (
-            <Link 
-              key={t.id} 
-              href={`/resource/${t.id || encodeURIComponent(t.title)}`} 
+            <Link
+              key={t.id}
+              href={`/resource/${t.id || encodeURIComponent(t.title)}`}
               className="flex items-center gap-3 md:gap-8 h-28 md:h-32"
               data-card-id={t.id || t.title}
             >
               <div className="w-1/3 h-full">
                 {t.image ? (
-                  <Image 
-                    src={t.image} 
+                  <Image
+                    src={t.image}
                     alt={t.title}
-                    width={400} 
-                    height={400} 
+                    width={400}
+                    height={400}
                     className="w-full h-full rounded-md object-cover"
                     onError={(e) => {
                       const target = e.target as HTMLImageElement;
@@ -236,12 +236,12 @@ const Featured = () => {
                     }}
                   />
                 ) : (
-                  <Image 
-                    src={getFallbackImage(t?.theme, t?.tags)} 
+                  <Image
+                    src={getFallbackImage(t?.theme, t?.tags)}
                     alt={t.title}
-                    width={400} 
-                    height={400} 
-                    className="w-full h-full rounded-md object-cover" 
+                    width={400}
+                    height={400}
+                    className="w-full h-full rounded-md object-cover"
                   />
                 )}
               </div>
@@ -261,7 +261,7 @@ const Featured = () => {
             </Link>
           ))}
           {trending.length === 0 && !loading && (
-            <div className="text-sm text-muted-foreground">No trending items.</div>
+            <div className="text-sm text-muted-foreground">No items in focus.</div>
           )}
         </div>
       </div>
