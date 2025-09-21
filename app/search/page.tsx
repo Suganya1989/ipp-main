@@ -1,5 +1,6 @@
 "use client"
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
+import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Label } from '@/components/ui/label'
@@ -15,7 +16,7 @@ import { Separator } from '@/components/ui/separator'
 import { cn as classNameMerge, formatDateDMY } from "@/lib/utils"
 import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from '@/components/ui/breadcrumb'
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet'
-import { Bookmark, FileText, Funnel, Gavel, Mic2, Newspaper, Pencil, Send, Video } from 'lucide-react'
+import { Bookmark, BookOpen, FileText, Funnel, Gavel, Mic2, Newspaper, Pencil, Send, Video } from 'lucide-react'
 import { Instrument_Serif } from 'next/font/google'
 import Image from 'next/image'
 import Link from 'next/link'
@@ -65,24 +66,43 @@ const ResourceThumbnail = ({ resource }: { resource: Resource }) => {
           className="object-cover group-hover:opacity-95 transition-opacity"
           onError={() => setHasError(true)}
         />
-      ) : null}
-      {(!imageUrl || hasError) && (
-        <div className="absolute inset-0 bg-gradient-to-br from-muted to-muted-foreground/20 flex items-center justify-center">
-          <div className="text-center text-muted-foreground">
-            {isLoading ? (
-              <div className="animate-pulse">
+      ) : (
+        <div className="absolute inset-0 bg-gradient-to-br from-muted to-muted-foreground/10 flex items-center justify-center">
+          {/* Blurred background logo */}
+          <div className="absolute inset-0">
+            <Image
+              src="/ipp-logo.png"
+              alt="IPP Logo"
+              fill
+              sizes="(max-width: 768px) 144px, 176px"
+              className="object-contain opacity-30 blur-sm"
+              onError={(e) => {
+                console.log('Logo failed to load:', e);
+                // Fallback to solid color background
+                const target = e.target as HTMLImageElement;
+                target.style.display = 'none';
+              }}
+            />
+          </div>
+          {/* Loading state only */}
+          {isLoading && (
+            <div className="absolute inset-0 flex items-center justify-center z-10">
+              <div className="animate-pulse text-center text-muted-foreground">
                 <FileText className="mx-auto h-8 w-8 mb-2" strokeWidth={1} />
                 <p className="text-xs font-medium">Loading...</p>
               </div>
-            ) : (
-              <>
-                <FileText className="mx-auto h-8 w-8 mb-2" strokeWidth={1} />
-                <p className="text-xs font-medium">{resource.type}</p>
-              </>
-            )}
-          </div>
+            </div>
+          )}
         </div>
       )}
+
+      {/* Source type badge in top left corner - always visible */}
+      <div className="absolute top-2 left-2 z-10">
+        <Badge variant="secondary" className="px-2 py-1 text-xs space-x-1 h-fit bg-background/80 backdrop-blur-sm">
+          <BookOpen className="size-3" strokeWidth={1.5} />
+          <span>{resource.type || 'Document'}</span>
+        </Badge>
+      </div>
     </div>
   )
 }
