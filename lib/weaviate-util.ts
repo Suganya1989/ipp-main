@@ -457,23 +457,16 @@ export async function searchResourcesWithFilters(
       });
     }
 
-    // Add type filters (robust LIKE with synonyms)
+    // Add type filters (exact match on sourceType or source_type)
     if (filters.types && filters.types.length > 0) {
-      const typeSynonyms: Record<string, string[]> = {
-        report: ['*report*', '*Report*'],
-        article: ['*article*', '*Article*', '*journal*', '*Journal*', '*paper*', '*Paper*'],
-        judgment: ['*judgment*', '*Judgment*', '*judgement*', '*Judgement*', '*court*', '*Court*', '*case*', '*Case*'],
-        video: ['*video*', '*Video*', '*documentary*', '*Documentary*'],
-        podcast: ['*podcast*', '*Podcast*', '*audio*', '*Audio*']
-      };
-
       const operands: WhereFilter[] = [];
+
       for (const t of filters.types) {
-        const key = String(t).trim().toLowerCase();
-        const patterns = typeSynonyms[key] || [`*${t}*`, `*${String(t).toLowerCase()}*`, `*${String(t).toUpperCase()}*`];
-        for (const p of patterns) {
-          operands.push({ path: ['sourceType'], operator: 'Like', valueText: p });
-        }
+        const typeStr = String(t).trim();
+        // Try both sourceType and source_type fields
+        operands.push(
+          { path: ['source_type'], operator: 'Equal', valueText: typeStr }
+        );
       }
 
       if (operands.length === 1) {

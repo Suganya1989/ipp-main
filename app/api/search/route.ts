@@ -10,7 +10,7 @@ export async function GET(request: Request) {
     const limit = Number(searchParams.get('limit') ?? '20')
 
     // Optional filters
-    const types = searchParams.getAll('types')
+    const sourceTypes = searchParams.getAll('sourceTypes')
     const themes = searchParams.getAll('themes')
     const sources = searchParams.getAll('sources')
     const authors = searchParams.getAll('authors')
@@ -18,11 +18,11 @@ export async function GET(request: Request) {
     const from = searchParams.get('from') || undefined
     const to = searchParams.get('to') || undefined
 
-    const hasAnyFilter = [types, themes, sources, authors, locations].some(arr => arr && arr.length > 0) || from || to
+    const hasAnyFilter = [sourceTypes, themes, sources, authors, locations].some(arr => arr && arr.length > 0) || from || to
 
     const data = hasAnyFilter
       ? await searchResourcesWithFilters(query, {
-          types: types.length ? types : undefined,
+          types: sourceTypes.length ? sourceTypes : undefined,
           themes: themes.length ? themes : undefined,
           sources: sources.length ? sources : undefined,
           authors: authors.length ? authors : undefined,
