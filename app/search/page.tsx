@@ -123,8 +123,6 @@ const SearchContent = (): React.JSX.Element => {
     const [relevantTypes, setRelevantTypes] = useState<string[]>([])
     const [relevantTags, setRelevantTags] = useState<string[]>([])
     const [relevantTopics, setRelevantTopics] = useState<string[]>([])
-    const [selectedSourceTypes, setSelectedSourceTypes] = useState<string[]>([])
-    const [relevantSourceTypes, setRelevantSourceTypes] = useState<string[]>([])
     const [filtersInitialized, setFiltersInitialized] = useState<boolean>(false)
    
     const searchParams = useSearchParams()
@@ -186,19 +184,14 @@ const SearchContent = (): React.JSX.Element => {
             params.set('query', currentQuery ? `${currentQuery} ${tagsQuery}`.trim() : tagsQuery)
         }
 
-        // Types filters
+        // Types filter (sent as sourceTypes to API)
         if (selectedTypes.size) {
-            Array.from(selectedTypes).forEach((t) => params.append('types', t))
+            Array.from(selectedTypes).forEach((t) => params.append('sourceTypes', t))
         }
 
         // Theme filter (topics)
         if (selectedTopics.length > 0) {
             selectedTopics.forEach(topic => params.append('themes', topic));
-        }
-
-        // Source type filter
-        if (selectedSourceTypes.length > 0) {
-            selectedSourceTypes.forEach(sourceType => params.append('sourceTypes', sourceType));
         }
 
         fetch(`/api/search?${params.toString()}`, { signal: controller.signal })
@@ -241,10 +234,6 @@ const SearchContent = (): React.JSX.Element => {
                 setRelevantTypes(uniqueTypes)
               }
 
-              // Extract unique source types from search results
-              const allSourceTypes = normalized.map(resource => resource.sourceType).filter((sourceType): sourceType is string => Boolean(sourceType))
-              const uniqueSourceTypes = [...new Set(allSourceTypes)]
-              setRelevantSourceTypes(uniqueSourceTypes)
 
               // Extract and rank themes from search results
               const allThemes = normalized.map(resource => resource.theme).filter((theme): theme is string => Boolean(theme))
@@ -275,7 +264,7 @@ const SearchContent = (): React.JSX.Element => {
             .catch((err) => { if (mounted && err?.name !== 'AbortError') setResults([]) })
             .finally(() => { if (mounted) setLoading(false) })
         return () => { mounted = false; controller.abort() }
-    }, [query, selectedTopics, selectedTypes, selectedTags, selectedSourceTypes, setResults, setLoading])
+    }, [query, selectedTopics, selectedTypes, selectedTags, setResults, setLoading])
 
     const onToggleType = (type: TypeKey) => {
         setSelectedTypes(prev => {
@@ -318,13 +307,6 @@ const SearchContent = (): React.JSX.Element => {
         setSelectedTags(next)
     }
 
-    const toggleSourceType = (sourceType: string, checked: boolean) => {
-        setSelectedSourceTypes(prev =>
-            checked
-                ? [...prev, sourceType]
-                : prev.filter(st => st !== sourceType)
-        );
-    }
 
   return (
     <main className="min-h-screen bg-background">
@@ -416,31 +398,6 @@ const SearchContent = (): React.JSX.Element => {
                     </div>
                   </section>
 
-                  {/* Source Types */}
-                  <section className="space-y-2">
-                    <h3 className="text-sm font-medium text-muted-foreground">Source Types</h3>
-                    <div className="space-y-2 max-h-60 overflow-y-auto p-1">
-                      {relevantSourceTypes.length === 0 ? (
-                        <p className="text-sm text-muted-foreground">No source types found in results</p>
-                      ) : (
-                        relevantSourceTypes.map((sourceType) => (
-                          <div key={sourceType} className="flex items-center space-x-2">
-                            <Checkbox
-                              id={`mobile-sourcetype-${sourceType}`}
-                              checked={selectedSourceTypes.includes(sourceType)}
-                              onCheckedChange={(checked) => toggleSourceType(sourceType, checked as boolean)}
-                            />
-                            <Label
-                              htmlFor={`mobile-sourcetype-${sourceType}`}
-                              className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
-                            >
-                              {sourceType}
-                            </Label>
-                          </div>
-                        ))
-                      )}
-                    </div>
-                  </section>
 
                   {/* Tags */}
                   <section className="space-y-3">
@@ -525,34 +482,6 @@ const SearchContent = (): React.JSX.Element => {
                     </div>
                   </section>
 
-                  {/* Source Types */}
-                  <section className="space-y-2">
-                    <h3 className="text-sm font-medium text-muted-foreground">Source Types</h3>
-                    <div className="max-h-60 overflow-y-auto space-y-2">
-                      {relevantSourceTypes.length > 0 ? (
-                        relevantSourceTypes.map((sourceType) => (
-                          <div key={sourceType} className="flex items-center space-x-2">
-                            <Checkbox
-                              id={`sourcetype-${sourceType}`}
-                              checked={selectedSourceTypes.includes(sourceType)}
-                              onCheckedChange={(checked) => {
-                                setSelectedSourceTypes(prev =>
-                                  checked
-                                    ? [...prev, sourceType]
-                                    : prev.filter(st => st !== sourceType)
-                                );
-                              }}
-                            />
-                            <Label htmlFor={`sourcetype-${sourceType}`} className="text-sm font-normal">
-                              {sourceType}
-                            </Label>
-                          </div>
-                        ))
-                      ) : (
-                        <p className="text-sm text-muted-foreground">No source types found in results</p>
-                      )}
-                    </div>
-                  </section>
 
                   {/* Tags */}
                   <section className="space-y-2">
