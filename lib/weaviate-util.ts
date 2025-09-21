@@ -774,7 +774,7 @@ export async function getThemesWithCounts(): Promise<Category[]> {
       .get()
       .withClassName('Docs')
       .withFields(fieldSelection)
-      .withLimit(10) // Get a large number to capture all themes
+      .withLimit(1000) // Get a large number to capture all themes
       .do();
 
     type DocLite = { theme?: unknown; properties?: { theme?: unknown } };
