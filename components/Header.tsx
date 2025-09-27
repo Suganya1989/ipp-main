@@ -42,7 +42,9 @@ const Header = () => {
 
                 {/* Desktop Button */}
                 <div className="hidden md:block">
-                    <Button className="rounded-sm px-6 bg-brand-primary-900">Contribute</Button>
+                    <Link href="/contribute">
+                        <Button className="rounded-sm px-6 bg-brand-primary-900">Contribute</Button>
+                    </Link>
                 </div>
 
                 {/* Mobile Menu Button */}
@@ -86,7 +88,9 @@ const Header = () => {
                             <Link href={"/"} onClick={() => setMenuOpen(false)}>About</Link>
 
                         </div>
-                        <Button className="rounded-sm px-6 w-11/12 bg-brand-primary-900">Contribute</Button>
+                        <Link href="/contribute" className="w-11/12" onClick={() => setMenuOpen(false)}>
+                            <Button className="rounded-sm px-6 w-full bg-brand-primary-900">Contribute</Button>
+                        </Link>
 
                     </motion.div>
                 )}

@@ -785,7 +785,7 @@ export async function getTypes(): Promise<string[]> {
     };
     const resources = ((res as WeaviateGetResponse)?.data?.Get?.Docs ?? []) as DocLite[];
 
-    // Extract unique types
+    // Extract unique types with case normalization
     const typesSet = new Set<string>();
 
     resources.forEach((resource: DocLite) => {
@@ -794,8 +794,8 @@ export async function getTypes(): Promise<string[]> {
                         resource.properties?.sourceType ??
                         resource.properties?.source_type;
       if (sourceType) {
-        const typeStr = String(sourceType).trim();
-        if (typeStr && typeStr !== 'null' && typeStr !== 'undefined') {
+        const typeStr = String(sourceType).trim().toLowerCase();
+        if (typeStr && typeStr !== 'null' && typeStr !== 'undefined' && typeStr !== '') {
           typesSet.add(typeStr);
         }
       }

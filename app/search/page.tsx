@@ -137,7 +137,7 @@ const SearchContent = (): React.JSX.Element => {
     const [selectedTags, setSelectedTags] = useState<Set<string>>(new Set())
     const [results, setResults] = useState<Resource[]>([])
     const [loading, setLoading] = useState<boolean>(true)
-    const [topics, setTopics] = useState<string[]>([])
+    const [topics, setTopics] = useState<{id: string, name: string}[]>([])
     const [tags, setTags] = useState<string[]>([])
     const [types, setTypes] = useState<string[]>([])
     const [relevantTypes, setRelevantTypes] = useState<string[]>([])
@@ -166,9 +166,16 @@ const SearchContent = (): React.JSX.Element => {
                 .catch(() => ({ data: ['Report', 'Article', 'Judgement', 'Video', 'Podcast'] })),
         ]).then(([themesRes, categoriesRes, typesRes]) => {
             if (!mounted) return
+            console.log('Raw themes data:', themesRes?.data)
+            const uniqueThemeNames = [...new Set(themesRes.data?.map((t: { name: string }) => t.name) || [])]
+            console.log('Unique theme names:', uniqueThemeNames)
             const tps = Array.isArray(themesRes?.data) && themesRes.data.length > 0
-                ? themesRes.data.map((t: { name: string }) => t.name)
+                ? uniqueThemeNames
+                    .filter(Boolean)
+                    .map((name, index) => ({ id: `theme-${index}-${name.replace(/\s+/g, '-').toLowerCase()}`, name }))
                 : ['General', 'Legal', 'Reform', 'Statistics', 'Education']
+                    .map((name, index) => ({ id: `theme-${index}-${name.replace(/\s+/g, '-').toLowerCase()}`, name }))
+            console.log('Final topics with IDs:', tps)
             const tgs = Array.isArray(categoriesRes?.data) && categoriesRes.data.length > 0
                 ? categoriesRes.data.map((c: { name: string }) => c.name)
                 : ['Policy', 'Research', 'News', 'Case Studies', 'Reports']
@@ -309,11 +316,11 @@ const SearchContent = (): React.JSX.Element => {
         return <FileText className="size-4" strokeWidth={1.5} /> // Default icon
     }
 
-    const toggleTopic = (topic: string, checked: boolean) => {
+    const toggleTopic = (topicName: string, checked: boolean) => {
         setSelectedTopics(prev =>
             checked
-                ? [...prev, topic]
-                : prev.filter(t => t !== topic)
+                ? [...prev, topicName]
+                : prev.filter(t => t !== topicName)
         );
     }
 
@@ -380,17 +387,17 @@ const SearchContent = (): React.JSX.Element => {
                         <p className="text-sm text-muted-foreground">Loading topics...</p>
                       ) : (
                         topics.map((topic) => (
-                          <div key={topic} className="flex items-center space-x-2">
+                          <div key={topic.id} className="flex items-center space-x-2">
                             <Checkbox
-                              id={`mobile-topic-${topic}`}
-                              checked={selectedTopics.includes(topic)}
-                              onCheckedChange={(checked) => toggleTopic(topic, checked as boolean)}
+                              id={`mobile-topic-${topic.id}`}
+                              checked={selectedTopics.includes(topic.name)}
+                              onCheckedChange={(checked) => toggleTopic(topic.name, checked as boolean)}
                             />
                             <Label
-                              htmlFor={`mobile-topic-${topic}`}
+                              htmlFor={`mobile-topic-${topic.id}`}
                               className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
                             >
-                              {topic}
+                              {topic.name}
                             </Label>
                           </div>
                         ))
@@ -459,20 +466,20 @@ const SearchContent = (): React.JSX.Element => {
                     <div className="max-h-60 overflow-y-auto space-y-2">
                       {topics.length > 0 ? (
                         topics.map((topic) => (
-                          <div key={topic} className="flex items-center space-x-2">
+                          <div key={topic.id} className="flex items-center space-x-2">
                             <Checkbox
-                              id={`topic-${topic}`}
-                              checked={selectedTopics.includes(topic)}
+                              id={`topic-${topic.id}`}
+                              checked={selectedTopics.includes(topic.name)}
                               onCheckedChange={(checked) => {
                                 setSelectedTopics(prev =>
                                   checked
-                                    ? [...prev, topic]
-                                    : prev.filter(t => t !== topic)
+                                    ? [...prev, topic.name]
+                                    : prev.filter(t => t !== topic.name)
                                 );
                               }}
                             />
-                            <Label htmlFor={`topic-${topic}`} className="text-sm font-normal">
-                              {topic}
+                            <Label htmlFor={`topic-${topic.id}`} className="text-sm font-normal">
+                              {topic.name}
                             </Label>
                           </div>
                         ))
