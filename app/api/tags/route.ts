@@ -1,8 +1,8 @@
 import { NextResponse } from 'next/server'
-import { getTagsWithCounts } from '@/lib/weaviate-util'
+import { getTagsWithCounts, type Category } from '@/lib/weaviate-util'
 
 // Cache for tags data
-let tagsCache: { data: any[], timestamp: number } | null = null
+let tagsCache: { data: Category[], timestamp: number } | null = null
 const CACHE_DURATION = 30 * 60 * 1000 // 30 minutes in milliseconds
 
 export async function GET() {
