@@ -167,21 +167,33 @@ const SearchContent = (): React.JSX.Element => {
         ]).then(([themesRes, categoriesRes, typesRes]) => {
             if (!mounted) return
             console.log('Raw themes data:', themesRes?.data)
-            const uniqueThemeNames = [...new Set(themesRes.data?.map((t: { name: string }) => t.name) || [])]
+            const uniqueThemeNames = [...new Set(
+              Array.isArray(themesRes?.data) 
+                ? themesRes.data
+                    .map((t: unknown) => typeof t === 'object' && t !== null ? (t as { name?: unknown }).name : null)
+                    .filter((name: unknown): name is string => typeof name === 'string' && name.length > 0)
+                : []
+            )]
             console.log('Unique theme names:', uniqueThemeNames)
             const tps = Array.isArray(themesRes?.data) && themesRes.data.length > 0
                 ? uniqueThemeNames
-                    .filter(Boolean)
-                    .map((name, index) => ({ id: `theme-${index}-${name.replace(/\s+/g, '-').toLowerCase()}`, name }))
+                    .filter((name): name is string => Boolean(name))
+                    .map((name: string, index: number) => ({
+                        id: `theme-${index}-${name.replace(/\s+/g, '-').toLowerCase()}`,
+                        name
+                    }))
                 : ['General', 'Legal', 'Reform', 'Statistics', 'Education']
-                    .map((name, index) => ({ id: `theme-${index}-${name.replace(/\s+/g, '-').toLowerCase()}`, name }))
+                    .map((name: string, index: number) => ({
+                        id: `theme-${index}-${name.replace(/\s+/g, '-').toLowerCase()}`,
+                        name
+                    }))
             console.log('Final topics with IDs:', tps)
             const tgs = Array.isArray(categoriesRes?.data) && categoriesRes.data.length > 0
                 ? categoriesRes.data.map((c: { name: string }) => c.name)
                 : ['Policy', 'Research', 'News', 'Case Studies', 'Reports']
                 console.log('types fetched ',typesRes)
             const tys = Array.isArray(typesRes?.data) && typesRes.data.length > 0
-                ? typesRes.data
+                ? typesRes.data.map((t: unknown) => String(t))
                 : ['Report', 'Article', 'Judgement', 'Video', 'Podcast']
             setTopics(tps)
             setTags(tgs)
