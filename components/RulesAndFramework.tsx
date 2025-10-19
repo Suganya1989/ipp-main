@@ -20,6 +20,7 @@ type Resource = {
   date: string;
   dateOfPublication?: string;
   image?: string;
+  imageUrl?: string;
   theme?: string;
   tags?: string[];
   authors?: string;
@@ -37,37 +38,6 @@ const RulesAndFramework = ({ themeIndex }: RulesAndFrameworkProps) => {
   const [theme, setTheme] = useState<string>("")
   const [currentIndex, setCurrentIndex] = useState(0)
   const [hasMore, setHasMore] = useState(false)
-
-
-  const fetchImage = useCallback(async (item: Resource) => {
-      if (!item?.linkToOriginalSource) return
-      
-      try {
-        const response = await fetch('/api/og-image-async', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            resourceId: item.id,
-            url: item.linkToOriginalSource
-          })
-        })
-        
-        const ogData = await response.json()
-        if (ogData.ogImage && !ogData.ogImage.startsWith('/')) {
-          setResources((prevItems: Resource[]) => 
-            prevItems.map(prevItem => 
-              prevItem.id === ogData.resourceId 
-                ? { ...prevItem, image: ogData.ogImage }
-                : prevItem
-            )
-          )
-        }
-      } catch (error) {
-        console.error('Failed to fetch OG image:', error)
-      }
-    }, [])
 
   useEffect(() => {
     let mounted = true
@@ -99,13 +69,6 @@ const RulesAndFramework = ({ themeIndex }: RulesAndFrameworkProps) => {
           setResources(currentPageResources)
           setHasMore(cachedData.allResources.length > 2)
           setLoading(false)
-          
-          // Fetch images only for visible resources (first 2)
-          currentPageResources.forEach((resource: Resource) => {
-            if (resource?.linkToOriginalSource) {
-              fetchImage(resource)
-            }
-          })
           return
         }
 
@@ -115,30 +78,20 @@ const RulesAndFramework = ({ themeIndex }: RulesAndFrameworkProps) => {
           const json = await res.json()
       
           const resourceData = Array.isArray(json.resources) ? json.resources : []
+
+          // Set initial resources
+          const initialResources = resourceData
           
-          // Set initial resources without fallback images to allow OG images to show
-          const initialResources = resourceData.map((item: Resource) => ({
-            ...item,
-            image: item.image || undefined
-          }))
-          
-          // Cache the data for 5 minutes per theme
+          // Cache the data for 10 minutes per theme
           pageCache.set(`rules-framework-data-${nextTrending}`, {
             allResources: initialResources,
             theme: nextTrending
-          }, 300)
+          }, 600)
           
           setAllResources(initialResources)
           const currentPageResources = initialResources.slice(0, 2)
           setResources(currentPageResources)
           setHasMore(initialResources.length > 2)
-          
-          // Fetch images only for visible resources (first 2)
-          currentPageResources.forEach((resource: Resource) => {
-            if (resource?.linkToOriginalSource) {
-              fetchImage(resource)
-            }
-          })
         } else {
           setResources([])
         }
@@ -151,7 +104,7 @@ const RulesAndFramework = ({ themeIndex }: RulesAndFrameworkProps) => {
     }
     load()
     return () => { mounted = false }
-  }, [fetchImage, themeIndex])
+  }, [themeIndex])
 
   const cards = resources.slice(0, 2)
 
@@ -163,13 +116,6 @@ const RulesAndFramework = ({ themeIndex }: RulesAndFrameworkProps) => {
       setResources(nextResources)
       setCurrentIndex(nextIndex)
       setHasMore(allResources.length > nextIndex + 2)
-      
-      // Fetch images for newly visible resources
-      nextResources.forEach((resource: Resource) => {
-        if (resource?.linkToOriginalSource) {
-          fetchImage(resource)
-        }
-      })
     } else {
       setHasMore(false)
     }
@@ -183,7 +129,6 @@ const RulesAndFramework = ({ themeIndex }: RulesAndFrameworkProps) => {
       setResources(prevResources)
       setCurrentIndex(prevIndex)
       setHasMore(allResources.length > prevIndex + 2)
-      // OG images will be loaded automatically by Intersection Observer
     }
   }
 
@@ -241,21 +186,17 @@ const RulesAndFramework = ({ themeIndex }: RulesAndFrameworkProps) => {
           <Link key={item.id || index} href={`/resource/${item.id || encodeURIComponent(item.title)}`} className="block w-full md:w-5/12">
             <Card className="border-0 shadow-none p-0 h-fit md:h-96 w-full" data-card-id={item.id || item.title}>
               <CardContent className="p-0 relative group overflow-hidden h-full w-full">
-                {item.image ? (
-                  <Image 
-                    src={item.image} 
-                    alt={item.title} 
-                    width={400} 
-                    height={400} 
-                    className="w-full h-80 object-cover rounded-xl"
-                    onError={(e) => {
-                      const target = e.target as HTMLImageElement;
-                      target.src = getFallbackImage(item?.theme, item?.tags)
-                    }}
-                  />
-                ) : (
-                  <Image src={getFallbackImage(item?.theme, item?.tags)} alt="Default" width={400} height={400} className="w-full h-80 object-cover rounded-xl" />
-                )}
+                <Image
+                  src={item.imageUrl || item.image || getFallbackImage(item?.theme, item?.tags)}
+                  alt={item.title}
+                  width={400}
+                  height={400}
+                  className="w-full h-80 object-cover rounded-xl"
+                  onError={(e) => {
+                    const target = e.target as HTMLImageElement;
+                    target.src = getFallbackImage(item?.theme, item?.tags)
+                  }}
+                />
                 <div className="absolute w-full h-full left-0 top-0  justify-center py-6 md:group-hover:opacity-100 md:opacity-0 flex  transition-all duration-200">
                   <div className="w-11/12 flex justify-between h-fit">
                     <Badge variant="secondary" className="px-2.5 py-1.5 space-x-px h-fit">

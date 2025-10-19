@@ -20,6 +20,7 @@ type Resource = {
   date: string;
   dateOfPublication?: string;
   image?: string;
+  imageUrl?: string;
   theme?: string;
   tags?: string[];
   authors?: string;
@@ -83,18 +84,15 @@ const OverCrowding = ({ themeIndex }: OverCrowdingProps) => {
           
           const resourceData = Array.isArray(json.resources) ? json.resources : []
           console.log('[OverCrowding] Resource data:', resourceData.length, 'items')
+
+          // Set initial resources
+          const initialResources = resourceData
           
-          // Set initial resources without images to allow OG images to show
-          const initialResources = resourceData.map((item: Resource) => ({
-            ...item,
-            image: item.image || undefined
-          }))
-          
-          // Cache the data for 5 minutes (per theme)
+          // Cache the data for 10 minutes (per theme)
           pageCache.set(cacheKey, {
             resources: initialResources,
             theme: nextTrending
-          }, 300)
+          }, 600)
           
           setResources(initialResources)
           setCards(initialResources.slice(0, 2))
@@ -119,99 +117,6 @@ const OverCrowding = ({ themeIndex }: OverCrowdingProps) => {
     load()
     return () => { mounted = false }
   }, [themeIndex])
-
-  // Load OG images asynchronously - original approach
-  const loadOGImages = (resources: Resource[]) => {
-    resources.forEach((item: Resource) => {
-      if (item.linkToOriginalSource && item.linkToOriginalSource.startsWith('http')) {
-        fetch('/api/og-image-async', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            resourceId: item.id,
-            url: item.linkToOriginalSource
-          })
-        })
-        .then(res => res.json())
-        .then(ogData => {
-          console.log('OverCrowding: OG API response:', ogData)
-          // Only update if we got a real OG image (not a fallback starting with /)
-          if (ogData.ogImage && !ogData.ogImage.startsWith('/')) {
-            console.log('OverCrowding: Real OG image received for', ogData.resourceId, ogData.ogImage)
-            setCards(prevCards => {
-              const updated = prevCards.map(prevItem => 
-                prevItem.id === ogData.resourceId 
-                  ? { ...prevItem, image: ogData.ogImage }
-                  : prevItem
-              )
-              console.log('OverCrowding: Updated cards with real OG image:', updated)
-              return updated
-            })
-          } else {
-            console.log('OverCrowding: Got fallback image or no image for', item.linkToOriginalSource, ogData.ogImage)
-          }
-        })
-        .catch((error) => {
-          console.log('OverCrowding: OG image fetch failed for', item.linkToOriginalSource, error)
-        })
-      }
-    })
-  }
-
-  // Intersection Observer for loading images when cards become visible
-  const createImageObserver = useCallback((): IntersectionObserver => {
-    const observer = new IntersectionObserver(
-      (entries) => {
-        entries.forEach((entry) => {
-          if (entry.isIntersecting) {
-            const cardElement = entry.target as HTMLElement
-            const cardId = cardElement.dataset.cardId
-            const card = cards.find(c => (c.id || c.title) === cardId)
-            
-            console.log(`[OverCrowding] Card intersecting:`, {
-              cardId,
-              cardFound: !!card,
-              cardTitle: card?.title,
-              hasImage: !!card?.image,
-              linkToOriginalSource: card?.linkToOriginalSource
-            })
-            
-            if (card && !card.image) {
-              console.log(`[OverCrowding] Loading OG image for visible card: ${card.title}`)
-              loadOGImages([card])
-            } else if (card && card.image) {
-              console.log(`[OverCrowding] Card already has image: ${card.title} - ${card.image}`)
-            }
-            observer.unobserve(entry.target)
-          }
-        })
-      },
-      { 
-        threshold: 0.1,
-        rootMargin: '50px'
-      }
-    )
-    return observer
-  }, [cards])
-
-  // Setup observer when cards are ready
-  useEffect(() => {
-    if (!loading && cards.length > 0) {
-      const observer = createImageObserver()
-
-      const timeoutId = setTimeout(() => {
-        const cardElements = document.querySelectorAll('[data-card-id]')
-        cardElements.forEach(el => observer.observe(el))
-      }, 100)
-
-      return () => {
-        clearTimeout(timeoutId)
-        observer.disconnect()
-      }
-    }
-  }, [cards, loading, createImageObserver])
 
   const handleNext = () => {
     const nextStartIndex = (currentPage + 1) * itemsPerPage
@@ -289,21 +194,17 @@ const OverCrowding = ({ themeIndex }: OverCrowdingProps) => {
                 data-card-id={item.id || item.title}
               >
                 <CardContent className="p-0 relative group overflow-hidden h-full w-full">
-                  {item.image ? (
-                    <Image 
-                      src={item.image} 
-                      alt={item.title} 
-                      width={400} 
-                      height={400} 
-                      className="w-full h-80 object-cover rounded-xl"
-                      onError={(e) => {
-                        const target = e.target as HTMLImageElement;
-                        target.src = "/Rules1.png";
-                      }}
-                    />
-                ) : (
-                  <Image src={getFallbackImage(item?.theme, item?.tags)} alt="Default" width={400} height={400} className="w-full h-80 object-cover rounded-xl" />
-                )}
+                  <Image
+                    src={item.imageUrl || item.image || getFallbackImage(item?.theme, item?.tags)}
+                    alt={item.title}
+                    width={400}
+                    height={400}
+                    className="w-full h-80 object-cover rounded-xl"
+                    onError={(e) => {
+                      const target = e.target as HTMLImageElement;
+                      target.src = getFallbackImage(item?.theme, item?.tags);
+                    }}
+                  />
                 <div className="absolute w-full h-full left-0 top-0  justify-center py-6 group-hover:opacity-100 opacity-0 flex  transition-all duration-200">
                   <div className="w-11/12 flex justify-between h-fit">
                     <Badge variant="secondary" className="px-2.5 py-1.5 space-x-px h-fit">

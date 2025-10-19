@@ -18,7 +18,7 @@ async function getSchemaFields(): Promise<string> {
     );
     
     _schema = await Promise.race([schemaPromise, timeoutPromise]) as WeaviateSchema;
-    const classSchema = _schema?.classes?.find((c) => c.class === 'Docs');
+    const classSchema = _schema?.classes?.find((c) => c.class === 'DocsWithImages');
     const properties = classSchema?.properties?.map((p) => p.name);
     _schemaFields = properties?.join(' ') || '';
     
@@ -76,6 +76,7 @@ export interface PrisonResource {
   source: string;
   date: string;
   image?: string;
+  imageUrl?: string;
   featured?: boolean;
   sourceType: string;
   sourcePlatform: string;
@@ -180,8 +181,21 @@ function mapWeaviateItemToPrisonResource(item: unknown, index: number): PrisonRe
     .map(k => k.trim());
   const source = String((rec.sourcePlatform ?? rec.authors ?? props?.sourcePlatform ?? props?.authors ?? 'Unknown Source'));
   const date = formatDate(rec.dateOfPublication ?? props?.dateOfPublication);
-  const image = typeof rec.image === 'string' && rec.image ? rec.image
+
+  // Extract imageUrl from Cloudflare R2 (primary source)
+  const imageUrlFromDb = typeof rec.ImageUrl === 'string' && rec.ImageUrl ? rec.ImageUrl
+    : (typeof rec.imageUrl === 'string' && rec.imageUrl ? rec.imageUrl : undefined);
+
+  // Fallback image logic (used when imageUrl is not available)
+  const fallbackImage = typeof rec.image === 'string' && rec.image ? rec.image
     : (typeof (rec.thumbnailUrl as unknown) === 'string' && (rec.thumbnailUrl as unknown as string)) || undefined;
+
+  // Final imageUrl: use Cloudflare R2 URL if available, otherwise fallback to existing image
+  const imageUrl = imageUrlFromDb || fallbackImage;
+
+  // Keep the original image field for backward compatibility
+  const image = fallbackImage;
+
   const sourceType = String(rec.sourceType ?? rec.source_type ?? props?.sourceType ?? props?.source_type ?? '');
   const sourcePlatform = String(rec.sourcePlatform ?? props?.sourcePlatform ?? '');
   const authors = String(rec.authors ?? props?.authors ?? '');
@@ -201,6 +215,7 @@ function mapWeaviateItemToPrisonResource(item: unknown, index: number): PrisonRe
     source,
     date,
     image,
+    imageUrl,
     featured: index === 0,
     sourceType,
     sourcePlatform,
@@ -231,7 +246,7 @@ export async function getResourceByIdOrTitle(identifier: string): Promise<Prison
           : `source_title summary sourceType keywords sourcePlatform authors dateOfPublication image linkToOriginalSource subTheme location theme _additional { id }`;
         const res = await client.graphql
           .get()
-          .withClassName('Docs')
+          .withClassName('DocsWithImages')
           .withFields(fieldSelection)
           .withWhere({
             path: ['id'],
@@ -241,7 +256,7 @@ export async function getResourceByIdOrTitle(identifier: string): Promise<Prison
           .withLimit(1)
           .do();
         const typedRes = res as WeaviateGetResponse;
-        const hits = (typedRes.data?.Get?.Docs ?? []) as unknown[];
+        const hits = (typedRes.data?.Get?.DocsWithImages ?? []) as unknown[];
         obj = hits[0];
       } catch {
         // Ignore errors and continue
@@ -259,16 +274,16 @@ export async function getResourceByIdOrTitle(identifier: string): Promise<Prison
         const fieldSelection = fields && fields.length > 0
           ? `${fields} _additional { id }`
           : `source_title summary sourceType keywords sourcePlatform authors dateOfPublication image linkToOriginalSource subTheme location theme _additional { id }`;
-        
+
         const res = (await client.graphql
           .get()
-          .withClassName('Docs')
+          .withClassName('DocsWithImages')
           .withFields(fieldSelection)
           .withBm25({ query: identifier, properties: ['source_title'] })
           .withLimit(1)
           .do()) as WeaviateGetResponse;
-        
-        const hits = (res.data?.Get?.Docs ?? []) as unknown[];
+
+        const hits = (res.data?.Get?.DocsWithImages ?? []) as unknown[];
         const obj = hits[0];
         
         if (obj) {
@@ -298,11 +313,11 @@ export async function getFeaturedResources(limit: number = 5): Promise<PrisonRes
       : `source_title summary sourceType keywords sourcePlatform authors dateOfPublication image linkToOriginalSource subTheme location theme _additional { id }`;
     const res = (await client.graphql
       .get()
-      .withClassName('Docs')
+      .withClassName('DocsWithImages')
       .withFields(fieldSelection)
       .withLimit(limit)
       .do()) as WeaviateGetResponse;
-    const docs = (res.data?.Get?.Docs ?? []) as unknown[];
+    const docs = (res.data?.Get?.DocsWithImages ?? []) as unknown[];
     console.log(docs);
     return docs.map((item, index) => mapWeaviateItemToPrisonResource(item, index));
   } catch (error) {
@@ -360,7 +375,7 @@ export async function getResourcesByKeywords(keywords: string[], limit: number =
     // Add timeout wrapper for the query
     const queryPromise = client.graphql
       .get()
-      .withClassName('Docs')
+      .withClassName('DocsWithImages')
       .withFields(fieldSelection)
       .withWhere(whereClause)
       .withLimit(limit)
@@ -371,7 +386,7 @@ export async function getResourcesByKeywords(keywords: string[], limit: number =
     );
 
     const res = await Promise.race([queryPromise, queryTimeoutPromise]) as WeaviateGetResponse;
-    const items = (res?.data?.Get?.Docs ?? []) as unknown[];
+    const items = (res?.data?.Get?.DocsWithImages ?? []) as unknown[];
 
     return items.map((item, index) => mapWeaviateItemToPrisonResource(item, index));
   } catch (error) {
@@ -398,7 +413,7 @@ export async function searchResourcesByKeyword(query: string, limit: number = 5)
     // Build query; if query is empty, fetch a sample without BM25 so callers like the filters API can aggregate
     const getBuilder = client.graphql
       .get()
-      .withClassName('Docs')
+      .withClassName('DocsWithImages')
       .withFields(fieldSelection)
       .withLimit(limit);
 
@@ -408,7 +423,7 @@ export async function searchResourcesByKeyword(query: string, limit: number = 5)
 
     const res = (await getBuilder.do()) as WeaviateGetResponse;
 
-    const items = (res.data?.Get?.Docs ?? []) as unknown[];
+    const items = (res.data?.Get?.DocsWithImages ?? []) as unknown[];
     return items.map((item, index) => mapWeaviateItemToPrisonResource(item, index));
   } catch (error) {
     console.error('Error in keyword search:', error);
@@ -457,15 +472,15 @@ export async function searchResourcesWithFilters(
       });
     }
 
-    // Add type filters (exact match on sourceType or source_type)
+    // Add type filters (case-insensitive match on sourceType or source_type)
     if (filters.types && filters.types.length > 0) {
       const operands: WhereFilter[] = [];
 
       for (const t of filters.types) {
-        const typeStr = String(t).trim();
-        // Try both sourceType and source_type fields
+        const typeStr = String(t).trim().toLowerCase();
+        // Use Like operator for case-insensitive matching on source_type field
         operands.push(
-          { path: ['source_type'], operator: 'Equal', valueText: typeStr }
+          { path: ['source_type'], operator: 'Like', valueText: `*${typeStr}*` }
         );
       }
 
@@ -577,7 +592,7 @@ export async function searchResourcesWithFilters(
     // Build and execute the query
     let queryBuilder = client.graphql
       .get()
-      .withClassName('Docs')
+      .withClassName('DocsWithImages')
       .withFields(fieldSelection)
       .withLimit(limit);
 
@@ -587,12 +602,12 @@ export async function searchResourcesWithFilters(
 
     // Add timeout wrapper for the query
     const queryPromise = queryBuilder.do();
-    const queryTimeoutPromise = new Promise((_, reject) => 
+    const queryTimeoutPromise = new Promise((_, reject) =>
       setTimeout(() => reject(new Error('GraphQL query timeout')), 15000)
     );
-    
+
     const res = await Promise.race([queryPromise, queryTimeoutPromise]) as WeaviateGetResponse;
-    const items = (res?.data?.Get?.Docs ?? []) as unknown[];
+    const items = (res?.data?.Get?.DocsWithImages ?? []) as unknown[];
     return items.map((item, index) => mapWeaviateItemToPrisonResource(item, index));
 
   } catch (error) {
@@ -618,21 +633,21 @@ export async function getResourcesByTheme(theme: string, limit: number = 5): Pro
     // Add timeout wrapper for GraphQL query
     const queryPromise = client.graphql
       .get()
-      .withClassName('Docs')
+      .withClassName('DocsWithImages')
       .withWhere({ path: ['theme'], operator: 'Like', valueText: String(theme) } as WhereFilter)
       .withFields(fields && fields.length > 0
         ? `${fields} _additional { id }`
         : `source_title summary sourceType keywords sourcePlatform authors dateOfPublication image link subTheme location theme _additional { id }`)
       .withLimit(limit)
       .do();
-      
-    const queryTimeoutPromise = new Promise((_, reject) => 
+
+    const queryTimeoutPromise = new Promise((_, reject) =>
       setTimeout(() => reject(new Error('GraphQL query timeout')), 15000)
     );
-    
+
     const res = await Promise.race([queryPromise, queryTimeoutPromise]) as WeaviateGetResponse;
 
-    const items = (res?.data?.Get?.Docs ?? []) as unknown[];
+    const items = (res?.data?.Get?.DocsWithImages ?? []) as unknown[];
     return items.map((item, index) => mapWeaviateItemToPrisonResource(item, index));
   } catch (error) {
     console.error('Error fetching resources by theme:', error);
@@ -653,14 +668,14 @@ export async function getCategories(): Promise<Category[]> {
     const fields = await getSchemaFields();
     const res = await client.graphql
       .get()
-      .withClassName('Docs')
+      .withClassName('DocsWithImages')
       .withFields(fields && fields.length > 0
         ? `${fields} _additional { id }`
         : `theme subTheme keywords _additional { id }`)
       .withLimit(1000) // Get a large number to capture all categories
       .do();
     type DocLite = { theme?: unknown; subTheme?: unknown; keywords?: unknown };
-    const resources = ((res as WeaviateGetResponse)?.data?.Get?.Docs ?? []) as DocLite[];
+    const resources = ((res as WeaviateGetResponse)?.data?.Get?.DocsWithImages ?? []) as DocLite[];
     const categoryMap = new Map<string, number>();
 
     // Count occurrences of themes, subthemes, and keywords
@@ -712,13 +727,13 @@ export async function getTagsWithCounts(): Promise<Category[]> {
     // Get all resources to count tags
     const res = await client.graphql
       .get()
-      .withClassName('Docs')
+      .withClassName('DocsWithImages')
       .withFields(fieldSelection)
       .withLimit(1000) // Get a large number to capture all tags
       .do();
 
     type DocLite = { keywords?: unknown; properties?: { keywords?: unknown } };
-    const resources = ((res as WeaviateGetResponse)?.data?.Get?.Docs ?? []) as DocLite[];
+    const resources = ((res as WeaviateGetResponse)?.data?.Get?.DocsWithImages ?? []) as DocLite[];
 
     // Count tags from keywords
     const tagCounts = new Map<string, number>();
@@ -770,7 +785,7 @@ export async function getTypes(): Promise<string[]> {
     // Get all resources to extract types
     const res = await client.graphql
       .get()
-      .withClassName('Docs')
+      .withClassName('DocsWithImages')
       .withFields(fieldSelection)
       .withLimit(1000) // Get a large number to capture all types
       .do();
@@ -783,7 +798,7 @@ export async function getTypes(): Promise<string[]> {
         source_type?: unknown;
       }
     };
-    const resources = ((res as WeaviateGetResponse)?.data?.Get?.Docs ?? []) as DocLite[];
+    const resources = ((res as WeaviateGetResponse)?.data?.Get?.DocsWithImages ?? []) as DocLite[];
 
     // Extract unique types with case normalization
     const typesSet = new Set<string>();
@@ -823,13 +838,13 @@ export async function getThemesWithCounts(): Promise<Category[]> {
     // Get all resources to count themes
     const res = await client.graphql
       .get()
-      .withClassName('Docs')
+      .withClassName('DocsWithImages')
       .withFields(fieldSelection)
       .withLimit(1000) // Get a large number to capture all themes
       .do();
 
     type DocLite = { theme?: unknown; properties?: { theme?: unknown } };
-    const resources = ((res as WeaviateGetResponse)?.data?.Get?.Docs ?? []) as DocLite[];
+    const resources = ((res as WeaviateGetResponse)?.data?.Get?.DocsWithImages ?? []) as DocLite[];
 
     // Count themes
     const themeCounts = new Map<string, number>();
@@ -857,6 +872,54 @@ export async function getThemesWithCounts(): Promise<Category[]> {
   } catch (error) {
     console.error('Error fetching themes from Weaviate:', error);
     return[];
+  }
+}
+
+// Method 9: Get all locations from database
+export async function getLocations(): Promise<string[]> {
+  try {
+    const client = getClient();
+    const fields = await getSchemaFields();
+    const fieldSelection = fields && fields.length > 0
+      ? `${fields} _additional { id }`
+      : `location _additional { id }`;
+
+    // Get all resources to extract locations
+    const res = await client.graphql
+      .get()
+      .withClassName('DocsWithImages')
+      .withFields(fieldSelection)
+      .withLimit(1000) // Get a large number to capture all locations
+      .do();
+
+    type DocLite = {
+      location?: unknown;
+      properties?: {
+        location?: unknown;
+      }
+    };
+    const resources = ((res as WeaviateGetResponse)?.data?.Get?.DocsWithImages ?? []) as DocLite[];
+
+    // Extract unique locations with case normalization
+    const locationsSet = new Set<string>();
+
+    resources.forEach((resource: DocLite) => {
+      const location = resource.location ?? resource.properties?.location;
+      if (location) {
+        const locationStr = String(location).trim();
+        if (locationStr && locationStr !== 'null' && locationStr !== 'undefined' && locationStr !== '') {
+          locationsSet.add(locationStr);
+        }
+      }
+    });
+
+    const locations = Array.from(locationsSet).sort();
+    console.log('Locations from database:', locations);
+    return locations;
+
+  } catch (error) {
+    console.error('Error fetching locations from Weaviate:', error);
+    return [];
   }
 }
 
@@ -897,5 +960,169 @@ function formatDate(dateInput: unknown): string {
   }
 }
 
+
+// Method 9: Semantic Search using BM25 (fallback when vectorizer not configured)
+// NOTE: This uses BM25 keyword search instead of true semantic search
+// To enable true semantic search, configure text2vec-openai on the DocsWithImages collection
+export async function semanticSearchByTopic(
+  topic: string,
+  limit: number = 20,
+  certainty: number = 0.7 // Not used in BM25, kept for API compatibility
+): Promise<PrisonResource[]> {
+  try {
+    const client = getClient();
+    const fields = await getSchemaFields();
+    const fieldSelection = fields && fields.length > 0
+      ? `${fields} _additional { id score }`
+      : `source_title summary sourceType keywords sourcePlatform authors dateOfPublication image imageUrl linkToOriginalSource subTheme location theme _additional { id score }`;
+
+    console.log(`[Search] Searching for topic: "${topic}" using BM25 (keyword search)`);
+    console.log(`[INFO] nearText not available - collection needs text2vec-openai vectorizer for true semantic search`);
+
+    // Use BM25 keyword search as fallback
+    const queryPromise = client.graphql
+      .get()
+      .withClassName('DocsWithImages')
+      .withFields(fieldSelection)
+      .withBm25({
+        query: topic,
+        properties: ['source_title', 'summary', 'keywords', 'theme', 'subTheme']
+      })
+      .withLimit(limit)
+      .do();
+
+    const queryTimeoutPromise = new Promise((_, reject) =>
+      setTimeout(() => reject(new Error('Search timeout')), 15000)
+    );
+
+    const res = await Promise.race([queryPromise, queryTimeoutPromise]) as WeaviateGetResponse;
+    const items = (res?.data?.Get?.DocsWithImages ?? []) as unknown[];
+
+    console.log(`[Search] Found ${items.length} results for "${topic}"`);
+
+    return items.map((item, index) => mapWeaviateItemToPrisonResource(item, index));
+  } catch (error) {
+    console.error('Error in search by topic:', error);
+
+    if (error instanceof Error && error.message.includes('timeout')) {
+      console.log('Search timeout for topic:', topic);
+    }
+
+    return [];
+  }
+}
+
+// Method 10: Multi-concept Search using BM25 (fallback when vectorizer not configured)
+// NOTE: This uses BM25 keyword search instead of true semantic search
+// To enable true semantic search, configure text2vec-openai on the DocsWithImages collection
+export async function semanticSearchByMultipleConcepts(
+  concepts: string[],
+  limit: number = 20,
+  certainty: number = 0.7 // Not used in BM25, kept for API compatibility
+): Promise<PrisonResource[]> {
+  try {
+    if (!concepts || concepts.length === 0) {
+      return [];
+    }
+
+    const client = getClient();
+    const fields = await getSchemaFields();
+    const fieldSelection = fields && fields.length > 0
+      ? `${fields} _additional { id score }`
+      : `source_title summary sourceType keywords sourcePlatform authors dateOfPublication image imageUrl linkToOriginalSource subTheme location theme _additional { id score }`;
+
+    // Combine all concepts into a single query string
+    const combinedQuery = concepts.filter(c => c && c.trim()).join(' ');
+
+    console.log(`[Search] Searching for concepts: ${concepts.join(', ')} using BM25 (keyword search)`);
+    console.log(`[INFO] nearText not available - collection needs text2vec-openai vectorizer for true semantic search`);
+
+    // Use BM25 keyword search as fallback
+    const queryPromise = client.graphql
+      .get()
+      .withClassName('DocsWithImages')
+      .withFields(fieldSelection)
+      .withBm25({
+        query: combinedQuery,
+        properties: ['source_title', 'summary', 'keywords', 'theme', 'subTheme']
+      })
+      .withLimit(limit)
+      .do();
+
+    const queryTimeoutPromise = new Promise((_, reject) =>
+      setTimeout(() => reject(new Error('Search timeout')), 15000)
+    );
+
+    const res = await Promise.race([queryPromise, queryTimeoutPromise]) as WeaviateGetResponse;
+    const items = (res?.data?.Get?.DocsWithImages ?? []) as unknown[];
+
+    console.log(`[Search] Found ${items.length} results for concepts: ${concepts.join(', ')}`);
+
+    return items.map((item, index) => mapWeaviateItemToPrisonResource(item, index));
+  } catch (error) {
+    console.error('Error in search by multiple concepts:', error);
+
+    if (error instanceof Error && error.message.includes('timeout')) {
+      console.log('Search timeout for concepts:', concepts);
+    }
+
+    return [];
+  }
+}
+
+// Method 11: BM25 Keyword Search (fallback when vectorizer not configured)
+// NOTE: This uses pure BM25 keyword search instead of hybrid semantic+keyword search
+// To enable true hybrid search, configure text2vec-openai on the DocsWithImages collection
+export async function hybridSearchByTopicAndTags(
+  topic: string,
+  tags: string[] = [],
+  limit: number = 20,
+  alpha: number = 0.5 // Not used in BM25, kept for API compatibility
+): Promise<PrisonResource[]> {
+  try {
+    const client = getClient();
+    const fields = await getSchemaFields();
+    const fieldSelection = fields && fields.length > 0
+      ? `${fields} _additional { id score }`
+      : `source_title summary sourceType keywords sourcePlatform authors dateOfPublication image imageUrl linkToOriginalSource subTheme location theme _additional { id score }`;
+
+    // Combine topic and tags into search query
+    const searchConcepts = [topic, ...tags].filter(c => c && c.trim()).join(' ');
+
+    console.log(`[Keyword Search] Searching for: "${searchConcepts}" using BM25`);
+    console.log(`[INFO] Hybrid search not available - collection needs text2vec-openai vectorizer`);
+
+    // Use BM25 keyword search as fallback for hybrid search
+    const queryPromise = client.graphql
+      .get()
+      .withClassName('DocsWithImages')
+      .withFields(fieldSelection)
+      .withBm25({
+        query: searchConcepts,
+        properties: ['source_title', 'summary', 'keywords', 'theme', 'subTheme']
+      })
+      .withLimit(limit)
+      .do();
+
+    const queryTimeoutPromise = new Promise((_, reject) =>
+      setTimeout(() => reject(new Error('Search timeout')), 15000)
+    );
+
+    const res = await Promise.race([queryPromise, queryTimeoutPromise]) as WeaviateGetResponse;
+    const items = (res?.data?.Get?.DocsWithImages ?? []) as unknown[];
+
+    console.log(`[Keyword Search] Found ${items.length} results`);
+
+    return items.map((item, index) => mapWeaviateItemToPrisonResource(item, index));
+  } catch (error) {
+    console.error('Error in keyword search:', error);
+
+    if (error instanceof Error && error.message.includes('timeout')) {
+      console.log('Keyword search timeout');
+    }
+
+    return [];
+  }
+}
 
 export default getClient;

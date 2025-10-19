@@ -10,6 +10,7 @@ import { Instrument_Serif } from "next/font/google";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
+import { pageCache } from "@/lib/cache";
 
 const instrument_serif = Instrument_Serif({
   subsets: ["latin"],
@@ -31,20 +32,43 @@ export default function Home() {
 
   useEffect(() => {
     let mounted = true
-    // Fetch trending keywords/tags and deduplicate by name
-    fetch('/api/tags')
-      .then(r => r.json())
-      .then(j => {
+
+    async function loadTrendingTags() {
+      try {
+        // Check cache first
+        const cacheKey = 'trending-tags-home'
+        const cachedData = pageCache.get(cacheKey) as { name: string; count: number }[] | null
+
+        if (cachedData && mounted) {
+          console.log('[Home] Using cached trending tags')
+          setTrendingTags(cachedData)
+          return
+        }
+
+        // Fetch trending keywords/tags and deduplicate by name
+        const response = await fetch('/api/tags')
+        const json = await response.json()
+
         if (!mounted) return
-        const list: { name: string; count: number }[] = Array.isArray(j.data) ? j.data : []
+
+        const list: { name: string; count: number }[] = Array.isArray(json.data) ? json.data : []
         const map = new Map<string, { name: string; count: number }>()
         for (const t of list) {
           const key = (t.name || '').toLowerCase()
           if (!map.has(key)) map.set(key, t)
         }
-        setTrendingTags(Array.from(map.values()))
-      })
-      .catch(() => {})
+        const dedupedTags = Array.from(map.values())
+
+        // Cache for 10 minutes (600 seconds)
+        pageCache.set(cacheKey, dedupedTags, 600)
+
+        setTrendingTags(dedupedTags)
+      } catch (error) {
+        console.error('[Home] Failed to load trending tags:', error)
+      }
+    }
+
+    loadTrendingTags()
     return () => { mounted = false }
   }, [])
 

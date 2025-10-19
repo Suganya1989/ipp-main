@@ -21,6 +21,7 @@ type Resource = {
   date: string;
   dateOfPublication?: string;
   image?: string;
+  imageUrl?: string;
   theme?: string;
   tags?: string[];
   authors?: string;
@@ -52,45 +53,18 @@ interface OGImageCache {
 }
 
 const CACHE_KEY = 'allThemeSections'
-const CACHE_DURATION = 2 * 60 * 60 * 1000 // 2 hours
-const REVALIDATE_THRESHOLD = 30 * 60 * 1000 // 30 minutes - trigger background revalidation
+const CACHE_DURATION = 10 * 60 * 1000 // 10 minutes
+const REVALIDATE_THRESHOLD = 5 * 60 * 1000 // 5 minutes - trigger background revalidation
 const OG_IMAGE_CACHE_KEY = 'ogImageCache'
-const OG_IMAGE_CACHE_DURATION = 24 * 60 * 60 * 1000 // 24 hours
+const OG_IMAGE_CACHE_DURATION = 10 * 60 * 1000 // 10 minutes
 
-// Individual resource component with lazy OG image loading
-const ResourceCard = ({ resource, layout, onImageLoad }: {
+// Individual resource component with lazy loading
+const ResourceCard = ({ resource, layout }: {
   resource: Resource;
   layout: 'two' | 'three';
-  onImageLoad: (resourceId: string, imageUrl: string) => void;
 }) => {
   const [isVisible, setIsVisible] = useState(false)
-  const [ogImageLoaded, setOgImageLoaded] = useState(false)
   const cardRef = useRef<HTMLDivElement>(null)
-
-  const loadOGImageIfNeeded = useCallback(async () => {
-    if (!resource.image && resource.linkToOriginalSource && !ogImageLoaded && resource.id) {
-      setOgImageLoaded(true)
-      try {
-        const response = await fetch('/api/og-image-async', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            resourceId: resource.id,
-            url: resource.linkToOriginalSource
-          })
-        })
-
-        if (response.ok) {
-          const ogData = await response.json()
-          if (ogData.ogImage) {
-            onImageLoad(resource.id, ogData.ogImage)
-          }
-        }
-      } catch (error) {
-        console.error('Error fetching OG image:', error)
-      }
-    }
-  }, [resource, ogImageLoaded, onImageLoad])
 
   // Intersection Observer for lazy loading
   useEffect(() => {
@@ -98,7 +72,6 @@ const ResourceCard = ({ resource, layout, onImageLoad }: {
       ([entry]) => {
         if (entry.isIntersecting && !isVisible) {
           setIsVisible(true)
-          loadOGImageIfNeeded()
         }
       },
       { threshold: 0.1, rootMargin: '100px' }
@@ -109,9 +82,10 @@ const ResourceCard = ({ resource, layout, onImageLoad }: {
     }
 
     return () => observer.disconnect()
-  }, [isVisible, loadOGImageIfNeeded])
+  }, [isVisible])
 
-  const imageUrl = resource.image || getFallbackImage(resource?.theme, resource?.tags)
+  // Use imageUrl from database (Cloudflare R2) if available, otherwise fall back to image field
+  const imageUrl = resource.imageUrl || resource.image || getFallbackImage(resource?.theme, resource?.tags)
 
   if (layout === 'two') {
     return (
@@ -213,99 +187,7 @@ const AllThemeSections = () => {
   const observerRef = useRef<IntersectionObserver | null>(null)
   const loadMoreTriggerRef = useRef<HTMLDivElement>(null)
 
-  // Handle OG image updates from lazy loading
-  const handleImageLoad = useCallback((resourceId: string, imageUrl: string) => {
-    setThemeSections(prev => prev.map(section => ({
-      ...section,
-      resources: section.resources.map(resource =>
-        resource.id === resourceId ? { ...resource, image: imageUrl } : resource
-      )
-    })))
-  }, [])
 
-  const fetchImageForSection = useCallback(async (item: Resource) => {
-      if (!item?.linkToOriginalSource || !item.id) return
-
-      // Check OG image cache first
-      const ogCache =
-      (pageCache.get(OG_IMAGE_CACHE_KEY) as OGImageCache | undefined) ?? ({} as OGImageCache);
-     const cachedImage = ogCache[item.id]
-
-     if (cachedImage && Date.now() - cachedImage.timestamp < OG_IMAGE_CACHE_DURATION) {
-      console.log(`Using cached OG image for ${item.id}`);
-      // Guard ensures we only assign a string (not null)
-      if (cachedImage.imageUrl ?? false) {
-        setThemeSections(prev =>
-          prev.map(section => ({
-            ...section,
-            resources: section.resources.map(resource =>
-              resource.id === item.id
-                // Ensure `image` stays `string | undefined`
-                ? { ...resource, image: cachedImage.imageUrl ?? resource.image }
-                : resource
-            ),
-          }))
-        );
-      }
-    }
-    
-
-      try {
-        const response = await fetch('/api/og-image-async', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            resourceId: item.id,
-            url: item.linkToOriginalSource
-          })
-        })
-
-        const ogData = await response.json()
-        if (ogData.ogImage && !ogData.ogImage.startsWith('/')) {
-          // Cache the OG image result
-          const updatedOgCache = {
-            ...ogCache,
-            [item.id]: {
-              imageUrl: ogData.ogImage,
-              timestamp: Date.now()
-            }
-          }
-          pageCache.set(OG_IMAGE_CACHE_KEY, updatedOgCache)
-
-          setThemeSections(prev => prev.map(section => ({
-            ...section,
-            resources: section.resources.map(resource =>
-              resource.id === ogData.resourceId
-                ? { ...resource, image: ogData.ogImage }
-                : resource
-            )
-          })))
-        } else {
-          // Cache the negative result to avoid repeated requests
-          const updatedOgCache = {
-            ...ogCache,
-            [item.id]: {
-              imageUrl: null,
-              timestamp: Date.now()
-            }
-          }
-          pageCache.set(OG_IMAGE_CACHE_KEY, updatedOgCache)
-        }
-      } catch (error) {
-        console.error('Failed to fetch OG image:', error)
-        // Cache the error to avoid repeated requests
-        const updatedOgCache = {
-          ...ogCache,
-          [item.id]: {
-            imageUrl: null,
-            timestamp: Date.now()
-          }
-        }
-        pageCache.set(OG_IMAGE_CACHE_KEY, updatedOgCache)
-      }
-    }, [])
 
   // Progressive section loading function
   const loadMoreSections = useCallback(() => {
@@ -343,8 +225,6 @@ const AllThemeSections = () => {
     }
   }, [loadMoreSections, isLoadingMoreSections, loadedSectionCount, allThemeData.length])
 
-  // Move fetchImageForSection outside of the main effect to fix dependency warning
-  const memoizedFetchImageForSection = useCallback(fetchImageForSection, [fetchImageForSection])
 
   useEffect(() => {
     let mounted = true
@@ -399,14 +279,6 @@ const AllThemeSections = () => {
 
                 setThemeSections(prev => [...prev, updatedSection])
                 setLoadedSectionCount(prev => prev + 1)
-
-                // Start OG image fetch for resources that don't have them (background)
-                const visibleResources = section.resources.slice(0, section.layout === 'two' ? 2 : 3)
-                visibleResources.forEach((resource: Resource) => {
-                  if (resource.linkToOriginalSource && !resource.image) {
-                    memoizedFetchImageForSection(resource)
-                  }
-                })
               }, index * 150) // Stagger by 150ms per section
             })
 
@@ -515,14 +387,6 @@ const AllThemeSections = () => {
               processedCount++
               console.log(`  ✅ Added and displayed section for "${theme.name}" with ${resources.length} visible resources, ${allResourcesForTheme.length} total`)
 
-              // Fetch images for newly visible resources in background (non-blocking)
-              resources.forEach((resource: Resource) => {
-                if (resource.linkToOriginalSource && !resource.image) {
-                  // Start OG image fetch immediately in background
-                  memoizedFetchImageForSection(resource)
-                }
-              })
-
               // Small delay between sections to prevent overwhelming the UI
               await new Promise(resolve => setTimeout(resolve, 100))
             } else {
@@ -547,7 +411,7 @@ const AllThemeSections = () => {
             version: '1.0',
             totalSections: sections.length,
             totalResources: sections.reduce((acc, section) => acc + section.allResources.length, 0)
-          }, CACHE_DURATION / 1000) // Cache for 2 hours in seconds
+          }, CACHE_DURATION / 1000) // Cache for 10 minutes in seconds
         }
       } catch (error) {
         console.error('Error loading themes:', error)
@@ -562,7 +426,7 @@ const AllThemeSections = () => {
     return () => {
       mounted = false
     }
-  }, [memoizedFetchImageForSection])
+  }, [])
 
   const handleNext = (sectionTheme: string, allResources: Resource[], layout: 'two' | 'three') => {
     const currentState = sectionStates[sectionTheme]
@@ -587,13 +451,6 @@ const AllThemeSections = () => {
           ? { ...section, resources: nextResources }
           : section
       ))
-
-      // Start OG image fetch for newly visible resources (background)
-      nextResources.forEach((resource: Resource) => {
-        if (resource?.linkToOriginalSource) {
-          memoizedFetchImageForSection(resource)
-        }
-      })
     } else {
       setSectionStates(prev => ({
         ...prev,
@@ -629,13 +486,6 @@ const AllThemeSections = () => {
           ? { ...section, resources: prevResources }
           : section
       ))
-
-      // Start OG image fetch for newly visible resources (background)
-      prevResources.forEach((resource: Resource) => {
-        if (resource?.linkToOriginalSource) {
-          memoizedFetchImageForSection(resource)
-        }
-      })
     }
   }
 
@@ -675,21 +525,17 @@ const AllThemeSections = () => {
           <Link key={item.id || index} href={`/resource/${item.id || encodeURIComponent(item.title)}`} className="block w-full md:w-5/12">
             <Card className="border-0 shadow-none p-0 h-fit md:h-96 w-full" data-card-id={item.id || item.title}>
               <CardContent className="p-0 relative group overflow-hidden h-full w-full">
-                {item.image ? (
-                  <Image
-                    src={item.image}
-                    alt={item.title}
-                    width={400}
-                    height={400}
-                    className="w-full h-80 object-cover rounded-xl"
-                    onError={(e) => {
-                      const target = e.target as HTMLImageElement;
-                      target.src = getFallbackImage(item?.theme, item?.tags)
-                    }}
-                  />
-                ) : (
-                  <Image src={getFallbackImage(item?.theme, item?.tags)} alt="Default" width={400} height={400} className="w-full h-80 object-cover rounded-xl" />
-                )}
+                <Image
+                  src={item.imageUrl || item.image || getFallbackImage(item?.theme, item?.tags)}
+                  alt={item.title}
+                  width={400}
+                  height={400}
+                  className="w-full h-80 object-cover rounded-xl"
+                  onError={(e) => {
+                    const target = e.target as HTMLImageElement;
+                    target.src = getFallbackImage(item?.theme, item?.tags)
+                  }}
+                />
                 <div className="absolute w-full h-full left-0 top-0  justify-center py-6 md:group-hover:opacity-100 md:opacity-0 flex  transition-all duration-200">
                   <div className="w-11/12 flex justify-between h-fit">
                     <Badge variant="secondary" className="px-2.5 py-1.5 space-x-px h-fit">
@@ -777,7 +623,6 @@ const AllThemeSections = () => {
             key={resource.id || idx}
             resource={resource}
             layout="three"
-            onImageLoad={handleImageLoad}
           />
         ))}
       </div>

@@ -50,7 +50,7 @@ export async function POST(request: Request) {
     // Insert the data into Weaviate
     const result = await client.data
       .creator()
-      .withClassName('Docs')
+      .withClassName('DocsWithImages')
       .withProperties(resourceData)
       .do()
 

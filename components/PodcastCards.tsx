@@ -25,6 +25,7 @@ type Resource = {
   date: string;
   dateOfPublication?: string;
   image?: string;
+  imageUrl?: string;
   theme?: string;
   tags?: string[];
   authors?: string;
@@ -50,39 +51,6 @@ const PodcastCards = ({ startIndex = 0, themeIndex: themeIndexProp }: PodcastCar
   const [hasMore, setHasMore] = useState(true)
   const [theme, setTheme] = useState<string>("")
   const router = useRouter()
-
-  const fetchImage = useCallback(async (item: Resource) => {
-    const src = item?.linkToOriginalSource
-    if (!src || !(src.startsWith('http://') || src.startsWith('https://'))) return
-    
-    try {
-      const controller = new AbortController()
-      const timeoutId = setTimeout(() => controller.abort(), 8000) // 8s timeout
-      const response = await fetch('/api/og-image-async', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          resourceId: item.id,
-          url: src
-        }),
-        signal: controller.signal
-      })
-      clearTimeout(timeoutId)
-      
-      if (response.ok) {
-        const ogData = await response.json()
-        if (ogData?.ogImage && typeof ogData.ogImage === 'string' && !ogData.ogImage.startsWith('/')) {
-          // Update the corresponding item in allItems and items
-          setAllItems(prev => prev.map(r => r.id === item.id ? { ...r, image: ogData.ogImage } : r))
-          setItems(prev => prev.map(r => r.id === item.id ? { ...r, image: ogData.ogImage } : r))
-        }
-      }
-    } catch {
-      // swallow network/abort errors; do not surface in UI
-    }
-  }, [])
 
   useEffect(() => {
     let mounted = true
@@ -143,17 +111,14 @@ const PodcastCards = ({ startIndex = 0, themeIndex: themeIndexProp }: PodcastCar
           }
         }
         
-        // Set all items without fallback images to allow OG images to show
-        const allPodcastItems = allThemeResources.map((item: Resource) => ({
-          ...item,
-          image: item.image || undefined
-        }))
+        // Set all items
+        const allPodcastItems = allThemeResources
         
-        // Cache the data for 5 minutes (per theme)
+        // Cache the data for 10 minutes (per theme)
         pageCache.set(cacheKey, {
           allPodcastItems,
           themeName: selectedTheme
-        }, 300)
+        }, 600)
         
         setAllItems(allPodcastItems)
         setTheme(selectedTheme)
@@ -163,68 +128,14 @@ const PodcastCards = ({ startIndex = 0, themeIndex: themeIndexProp }: PodcastCar
         setItems(initialItems)
         setCurrentIndex(0)
         setHasMore(allPodcastItems.length > 3)
-        
-        // Load OG images for visible items only
-        if (mounted) {
-          initialItems.forEach((item: Resource) => {
-            if (item?.linkToOriginalSource) {
-              fetchImage(item)
-            }
-          })
-        }
       } catch (error) {
         console.error('Failed to fetch themes:', error)
       }
     }
-    
+
     load()
     return () => { mounted = false }
-  }, [startIndex, themeIndexProp, fetchImage])
-
-
-  // Create intersection observer for loading images when cards become visible
-  const createImageObserver = useCallback(() => {
-    const observer = new IntersectionObserver(
-      (entries) => {
-        entries.forEach((entry) => {
-          if (entry.isIntersecting) {
-            const cardElement = entry.target as HTMLElement
-            const cardId = cardElement.dataset.cardId
-            const item = items.find(i => (i.id || i.title) === cardId)
-            
-            if (item && !item.image) {
-              console.log(`[PodcastCards] Card visible, loading OG image for: ${item.title}`)
-              fetchImage(item)
-            }
-            observer.unobserve(entry.target)
-          }
-        })
-      },
-      { 
-        threshold: 0.1, // Load when 10% visible
-        rootMargin: '50px' // Start loading 50px before entering viewport
-      }
-    )
-    return observer
-  }, [items, fetchImage])
-
-  // Setup observer when items are ready
-  useEffect(() => {
-    if (items.length > 0) {
-      const observer = createImageObserver()
-
-      // Observe card elements after they're rendered
-      const timeoutId = setTimeout(() => {
-        const cardElements = document.querySelectorAll('[data-card-id]')
-        cardElements.forEach(el => observer.observe(el))
-      }, 100)
-
-      return () => {
-        clearTimeout(timeoutId)
-        observer.disconnect()
-      }
-    }
-  }, [items, createImageObserver])
+  }, [startIndex, themeIndexProp])
 
   const handleNext = () => {
     const nextIndex = currentIndex + 3
@@ -234,13 +145,6 @@ const PodcastCards = ({ startIndex = 0, themeIndex: themeIndexProp }: PodcastCar
       setItems(nextItems)
       setCurrentIndex(nextIndex)
       setHasMore(allItems.length > nextIndex + 3)
-      
-      // Load OG images for newly visible items
-      nextItems.forEach((item: Resource) => {
-        if (item?.linkToOriginalSource) {
-          fetchImage(item)
-        }
-      })
     } else {
       setHasMore(false)
     }
@@ -254,13 +158,6 @@ const PodcastCards = ({ startIndex = 0, themeIndex: themeIndexProp }: PodcastCar
       setItems(prevItems)
       setCurrentIndex(prevIndex)
       setHasMore(allItems.length > prevIndex + 3)
-      
-      // Load OG images for newly visible items
-      prevItems.forEach((item: Resource) => {
-        if (item?.linkToOriginalSource) {
-          fetchImage(item)
-        }
-      })
     }
   }
 
@@ -298,27 +195,17 @@ const PodcastCards = ({ startIndex = 0, themeIndex: themeIndexProp }: PodcastCar
             <Card className="border-0 shadow-none p-0 h-[24rem] md:h-[32rem] w-full">
               <CardContent className="p-0 relative group overflow-hidden h-full w-full">
                 <div className="h-[20rem] md:h-[28rem] w-full overflow-hidden rounded-xl">
-                  {card?.image ? (
-                    <Image 
-                      src={card.image} 
-                      alt="Featured" 
-                      width={400} 
-                      height={400} 
-                      className="w-full h-full object-cover"
-                      onError={(e) => {
-                        const target = e.target as HTMLImageElement;
-                        target.src = getFallbackImage(card?.theme, card?.tags);
-                      }}
-                    />
-                  ) : (
-                    <Image 
-                      src={getFallbackImage(card?.theme, card?.tags)} 
-                      alt="Default" 
-                      width={400} 
-                      height={400} 
-                      className="w-full h-full object-cover" 
-                    />
-                  )}
+                  <Image
+                    src={card.imageUrl || card.image || getFallbackImage(card?.theme, card?.tags)}
+                    alt="Featured"
+                    width={400}
+                    height={400}
+                    className="w-full h-full object-cover"
+                    onError={(e) => {
+                      const target = e.target as HTMLImageElement;
+                      target.src = getFallbackImage(card?.theme, card?.tags);
+                    }}
+                  />
                 </div>
                 <div className="absolute w-full h-full bg-gradient-to-b from-zinc-700/10 to-zinc-900/60 left-0 top-0 justify-between py-4 items-center flex flex-col transition-all duration-200 rounded-xl">
                   <div className="w-11/12 flex justify-between h-fit opacity-100 md:group-hover:opacity-100 md:opacity-0 transition-opacity">

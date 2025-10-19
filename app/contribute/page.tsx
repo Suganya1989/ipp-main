@@ -5,6 +5,12 @@ import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { User, Mail, Link as LinkIcon, Upload } from 'lucide-react'
 import { useState, useEffect } from 'react'
+import { Inter } from 'next/font/google'
+
+const inter = Inter({
+  subsets: ['latin'],
+  display: 'swap',
+})
 
 const ContributePage = () => {
   const [formData, setFormData] = useState({
@@ -16,14 +22,15 @@ const ContributePage = () => {
     resourceType: '',
     location: '',
     theme: '',
-    customTag: ''
+    customTag: '',
+    showPublicly: 'yes'
   })
 
   const [selectedTags, setSelectedTags] = useState<string[]>([])
   const [sourceTypes, setSourceTypes] = useState<string[]>([])
   const [themes, setThemes] = useState<string[]>([])
   const [suggestedTags, setSuggestedTags] = useState<string[]>([])
-  const [articleSuggestedTags, setArticleSuggestedTags] = useState<string[]>([])
+  const [extractedImage, setExtractedImage] = useState<string>('')
   const [isExtracting, setIsExtracting] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [submitStatus, setSubmitStatus] = useState<{type: 'success' | 'error', message: string} | null>(null)
@@ -115,10 +122,11 @@ const ContributePage = () => {
           resourceType: '',
           location: '',
           theme: '',
-          customTag: ''
+          customTag: '',
+          showPublicly: 'yes'
         })
         setSelectedTags([])
-        setArticleSuggestedTags([])
+        setExtractedImage('')
       } else {
         setSubmitStatus({
           type: 'error',
@@ -159,26 +167,18 @@ const ContributePage = () => {
       const result = await response.json()
 
       if (result.success) {
-        setFormData(prev => ({
-          ...prev,
-          title: result.title || prev.title,
-          summary: result.summary || prev.summary,
-        }))
-
-        // Auto-select suggested tags from the article
-        if (result.suggestedTags && result.suggestedTags.length > 0) {
-          setArticleSuggestedTags(result.suggestedTags)
-          setSelectedTags(prev => {
-            const newTags = result.suggestedTags.filter((tag: string) => !prev.includes(tag))
-            return [...prev, ...newTags]
-          })
+        // Store the OG image
+        if (result.image) {
+          setExtractedImage(result.image)
+        } else {
+          alert('No image found for this URL')
         }
       } else {
-        alert('Failed to extract details: ' + (result.error || 'Unknown error'))
+        alert('Failed to extract image: ' + (result.error || 'Unknown error'))
       }
     } catch (error) {
       console.error('Error fetching details:', error)
-      alert('Failed to extract details from URL')
+      alert('Failed to extract image from URL')
     } finally {
       setIsExtracting(false)
     }
@@ -200,63 +200,31 @@ const ContributePage = () => {
   }
 
   return (
-    <main className="min-h-screen bg-white">
-      <div className="max-w-2xl mx-auto px-4 py-8">
+    <main className={`min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/30 to-slate-50 ${inter.className}`}>
+      <div className="max-w-3xl mx-auto px-6 py-16">
         {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-3xl font-light text-black mb-3">Contribute a Resource</h1>
-          <p className="text-gray-500 text-sm leading-relaxed">
-            Help build our knowledge base by sharing valuable content related to prison reform in India.
-            Simply paste a link and we will automatically extract the details for you.
+        <div className="mb-12">
+          <h1 className="text-5xl font-semibold text-gray-900 mb-4 tracking-tight">Share a source</h1>
+          <p className="text-gray-600 text-base leading-relaxed">
+            Help build our knowledge base by sharing valuable content related to prison reform in India. Simply paste a link and we&apos;ll automatically extract the details for you.
           </p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-6">
-          {/* Your Information */}
-          <section>
-            <h2 className="text-xl font-normal text-black mb-2">Your Information</h2>
-            <p className="text-gray-500 text-sm mb-4">Help us attribute your contribution properly (optional but recommended)</p>
-
-            <div className="space-y-4">
-              <div className="relative">
-                <User className="absolute left-3 top-3 text-gray-400 w-4 h-4" />
-                <Input
-                  type="text"
-                  placeholder="Your name"
-                  className="pl-10 h-10 text-sm"
-                  value={formData.name}
-                  onChange={(e) => handleInputChange('name', e.target.value)}
-                />
-              </div>
-
-              <div className="relative">
-                <Mail className="absolute left-3 top-3 text-gray-400 w-4 h-4" />
-                <Input
-                  type="email"
-                  placeholder="Your email address"
-                  className="pl-10 h-10 text-sm"
-                  value={formData.email}
-                  onChange={(e) => handleInputChange('email', e.target.value)}
-                />
-              </div>
-            </div>
-          </section>
-
-          {/* Resource URL */}
-          <section>
-            <h2 className="text-xl font-normal text-black mb-2">Resource URL</h2>
-            <p className="text-gray-500 text-sm mb-4">
-              Paste the URL of the article, report, or resource you want to share. We will automatically
-              extract the title, description, and image.
+          {/* Source URL */}
+          <section className="bg-white rounded-xl p-8 shadow-lg shadow-blue-100/50 border border-gray-100">
+            <h2 className="text-lg font-semibold text-gray-900 mb-2">Source URL</h2>
+            <p className="text-gray-500 text-sm mb-6">
+              Paste the URL of the article, report, or resource you want to share. We&apos;ll automatically extract the title, description, and image.
             </p>
 
-            <div className="space-y-3">
-              <div className="relative">
-                <LinkIcon className="absolute left-3 top-3 text-gray-400 w-4 h-4" />
+            <div className="flex gap-3">
+              <div className="relative flex-1">
+                <LinkIcon className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4" />
                 <Input
                   type="url"
-                  placeholder="https://example.com/prison-reform-article"
-                  className="pl-10 h-10 text-sm"
+                  placeholder="https://portal.com/prison-reform-article"
+                  className="pl-11 h-12 text-sm border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   value={formData.resourceUrl}
                   onChange={(e) => handleInputChange('resourceUrl', e.target.value)}
                 />
@@ -264,54 +232,54 @@ const ContributePage = () => {
               <Button
                 type="button"
                 onClick={handleFetchDetails}
-                variant="outline"
-                className="w-full h-10 text-sm"
+                className="h-12 px-8 text-sm font-medium bg-slate-800 hover:bg-slate-900 text-white rounded-lg shadow-md hover:shadow-lg transition-all"
                 disabled={isExtracting || !formData.resourceUrl}
               >
-                {isExtracting ? 'Extracting...' : 'Fetch Details'}
+                {isExtracting ? 'Loading...' : 'Fetch Details'}
               </Button>
             </div>
           </section>
 
           {/* Content Details */}
-          <section>
-            <h2 className="text-xl font-normal text-black mb-2">Content Details</h2>
-            <p className="text-gray-500 text-sm mb-4">Review and edit the automatically extracted information, or add your own if needed.</p>
+          <section className="bg-white rounded-xl p-8 shadow-lg shadow-blue-100/50 border border-gray-100">
+            <h2 className="text-lg font-semibold text-gray-900 mb-2">Content Details</h2>
+            <p className="text-gray-500 text-sm mb-6">Review and edit the automatically extracted information, or add your own if needed.</p>
 
-            <div className="space-y-4">
+            <div className="space-y-6">
               <div>
-                <Label htmlFor="title" className="text-sm font-normal text-gray-600 mb-2 block">Resource Title</Label>
+                <Label htmlFor="title" className="text-sm font-semibold text-gray-700 mb-2.5 block">Resource Title</Label>
                 <Input
                   id="title"
                   type="text"
                   placeholder="Enter Resource Title"
-                  className="h-10 text-sm"
+                  className="h-12 text-sm border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   value={formData.title}
                   onChange={(e) => handleInputChange('title', e.target.value)}
                 />
               </div>
 
               <div>
-                <Label htmlFor="summary" className="text-sm font-normal text-gray-600 mb-2 block">Blog Summary</Label>
+                <Label htmlFor="summary" className="text-sm font-semibold text-gray-700 mb-2.5 block">Blog Summary</Label>
                 <Textarea
                   id="summary"
-                  placeholder="Write a clear, informative summary of this resource. Focus on key findings, recommendations, or insights that would be valuable to the prison reform community."
-                  className="min-h-[100px] text-sm resize-none"
+                  placeholder="Write a clear, informative summary..."
+                  className="min-h-[140px] text-sm resize-none border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   value={formData.summary}
                   onChange={(e) => handleInputChange('summary', e.target.value)}
+                  maxLength={2000}
                 />
-                <div className="text-right text-xs text-gray-400 mt-1">
-                  0/500 Characters
+                <div className="text-right text-xs font-medium text-gray-400 mt-2">
+                  {formData.summary.length}/2000 Characters
                 </div>
               </div>
 
-              <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-5">
                 <div>
-                  <Label htmlFor="resourceType" className="text-sm font-normal text-gray-600 mb-2 block">Resource Type</Label>
+                  <Label htmlFor="resourceType" className="text-sm font-semibold text-gray-700 mb-2.5 block">Resource Type</Label>
                   <select
                     title="selectResource"
                     id="resourceType"
-                    className="w-full h-10 border border-gray-300 rounded-md px-3 text-sm focus:border-gray-400 focus:ring-gray-400 bg-white"
+                    className="w-full h-12 border border-gray-200 rounded-lg px-4 text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-500 bg-white transition-all"
                     value={formData.resourceType}
                     onChange={(e) => handleInputChange('resourceType', e.target.value)}
                   >
@@ -325,11 +293,11 @@ const ContributePage = () => {
                 </div>
 
                 <div>
-                  <Label htmlFor="location" className="text-sm font-normal text-gray-600 mb-2 block">Location</Label>
+                  <Label htmlFor="location" className="text-sm font-semibold text-gray-700 mb-2.5 block">Location</Label>
                   <select
                     title="selectLocation"
                     id="location"
-                    className="w-full h-10 border border-gray-300 rounded-md px-3 text-sm focus:border-gray-400 focus:ring-gray-400 bg-white"
+                    className="w-full h-12 border border-gray-200 rounded-lg px-4 text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-500 bg-white transition-all"
                     value={formData.location}
                     onChange={(e) => handleInputChange('location', e.target.value)}
                   >
@@ -340,61 +308,84 @@ const ContributePage = () => {
                     <option value="international">International</option>
                   </select>
                 </div>
+              </div>
 
-                <div>
-                  <Label htmlFor="theme" className="text-sm font-normal text-gray-600 mb-2 block">Select Topic</Label>
-                  <select
-                    title="selectTheme"
-                    id="theme"
-                    className="w-full h-10 border border-gray-300 rounded-md px-3 text-sm focus:border-gray-400 focus:ring-gray-400 bg-white"
-                    value={formData.theme}
-                    onChange={(e) => handleInputChange('theme', e.target.value)}
-                  >
-                    <option value="">Select Topic</option>
-                    {themes.map((theme, index) => (
-                      <option key={`theme-${index}-${theme}`} value={theme}>
-                        {theme}
-                      </option>
-                    ))}
-                  </select>
-                </div>
+              <div>
+                <Label htmlFor="theme" className="text-sm font-semibold text-gray-700 mb-2.5 block">Select Topic</Label>
+                <select
+                  title="selectTheme"
+                  id="theme"
+                  className="w-full h-12 border border-gray-200 rounded-lg px-4 text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-500 bg-white transition-all"
+                  value={formData.theme}
+                  onChange={(e) => handleInputChange('theme', e.target.value)}
+                >
+                  <option value="">Select Topic</option>
+                  {themes.map((theme, index) => (
+                    <option key={`theme-${index}-${theme}`} value={theme}>
+                      {theme}
+                    </option>
+                  ))}
+                </select>
               </div>
             </div>
           </section>
 
           {/* Thumbnail Image */}
-          <section>
-            <h2 className="text-xl font-normal text-black mb-2">Thumbnail Image</h2>
-            <p className="text-gray-500 text-sm mb-4">Upload a thumbnail image for this resource, or choose from the suggested options.</p>
+          <section className="bg-white rounded-xl p-8 shadow-lg shadow-blue-100/50 border border-gray-100">
+            <h2 className="text-lg font-semibold text-gray-900 mb-2">Thumbnail Image</h2>
+            <p className="text-gray-500 text-sm mb-6">
+              {extractedImage ? 'Preview of the extracted image from the URL' : 'Upload a thumbnail image for this resource, or choose from the suggested options.'}
+            </p>
 
-            <div className="border-2 border-dashed border-gray-300 rounded-lg p-6">
-              <div className="text-center">
-                <Upload className="mx-auto w-8 h-8 text-gray-400 mb-3" />
-                <div className="space-y-2">
-                  <Button type="button" variant="outline" className="text-sm h-9 px-4">
-                    Upload
-                  </Button>
-                  <div className="text-gray-400 text-sm">or</div>
-                  <Button type="button" variant="link" className="text-gray-600 text-sm p-0 h-auto">
-                    choose thumbnail
-                  </Button>
+            {extractedImage ? (
+              <div className="space-y-4">
+                <div className="relative rounded-xl overflow-hidden border-2 border-gray-200">
+                  <img
+                    src={extractedImage}
+                    alt="Extracted thumbnail"
+                    className="w-full h-auto object-cover"
+                  />
+                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setExtractedImage('')}
+                  className="text-sm h-10 px-6 border-gray-300 hover:border-red-400 hover:bg-red-50 hover:text-red-600 rounded-lg transition-all"
+                >
+                  Remove Image
+                </Button>
+              </div>
+            ) : (
+              <div className="border-2 border-dashed border-gray-300 rounded-xl p-10 bg-gradient-to-br from-gray-50 to-slate-50 hover:border-blue-300 transition-colors">
+                <div className="text-center">
+                  <div className="w-14 h-14 mx-auto mb-4 rounded-full bg-blue-50 flex items-center justify-center">
+                    <Upload className="w-6 h-6 text-blue-600" />
+                  </div>
+                  <div className="space-y-3">
+                    <Button type="button" variant="outline" className="text-sm h-10 px-6 border-gray-300 hover:border-blue-400 hover:bg-blue-50 rounded-lg transition-all">
+                      Upload Image
+                    </Button>
+                    <div className="text-gray-400 text-xs font-medium">or</div>
+                    <Button type="button" variant="link" className="text-blue-600 text-sm p-0 h-auto hover:text-blue-700 font-medium">
+                      choose thumbnail
+                    </Button>
+                  </div>
                 </div>
               </div>
-            </div>
+            )}
           </section>
 
           {/* Tags */}
-          <section>
-            <h2 className="text-xl font-normal text-black mb-2">Tags</h2>
-            <p className="text-gray-500 text-sm mb-4">Add relevant tags to help others discover this resource. Choose from suggested tags or add your own.</p>
+          <section className="bg-white rounded-xl p-8 shadow-lg shadow-blue-100/50 border border-gray-100">
+            <h2 className="text-lg font-semibold text-gray-900 mb-2">Tags</h2>
+            <p className="text-gray-500 text-sm mb-6">Add relevant tags to help others discover this resource. Choose from suggested tags or add your own.</p>
 
-            <div className="space-y-4">
+            <div className="space-y-6">
               <div>
-                <Label className="text-sm font-normal text-gray-600 mb-3 block">Suggested tags</Label>
-                <div className="grid grid-cols-3 gap-2">
+                <Label className="text-sm font-semibold text-gray-700 mb-3 block">Suggested tags</Label>
+                <div className="grid grid-cols-3 gap-2.5">
                   {suggestedTags.map((tag) => {
                     const isSelected = selectedTags.includes(tag)
-                    const isFromArticle = articleSuggestedTags.includes(tag.toLowerCase())
 
                     return (
                       <Button
@@ -403,15 +394,13 @@ const ContributePage = () => {
                         variant="outline"
                         size="sm"
                         onClick={() => toggleTag(tag)}
-                        className={`h-8 text-xs ${
+                        className={`h-9 text-xs font-medium rounded-lg transition-all ${
                           isSelected
-                            ? 'bg-blue-100 text-blue-700 border-blue-300'
-                            : isFromArticle
-                            ? 'bg-green-50 text-green-700 border-green-300 hover:bg-green-100'
-                            : 'border-gray-200 hover:bg-gray-50'
+                            ? 'bg-blue-600 text-white border-blue-600 hover:bg-blue-700 shadow-md'
+                            : 'border-gray-200 hover:bg-gray-50 hover:border-gray-300'
                         }`}
                       >
-                        {isFromArticle ? '✨ ' : '+ '}{tag}
+                        {isSelected ? '✓ ' : '+ '}{tag}
                       </Button>
                     )
                   })}
@@ -419,19 +408,19 @@ const ContributePage = () => {
               </div>
 
               <div>
-                <Label className="text-sm font-normal text-gray-600 mb-3 block">Add Custom Tag</Label>
-                <div className="flex gap-2">
+                <Label className="text-sm font-semibold text-gray-700 mb-3 block">Add Custom Tag</Label>
+                <div className="flex gap-3">
                   <Input
                     type="text"
                     placeholder="Enter Custom Tag"
-                    className="h-9 text-sm"
+                    className="h-12 text-sm border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     value={formData.customTag}
                     onChange={(e) => handleInputChange('customTag', e.target.value)}
                   />
                   <Button
                     type="button"
                     onClick={addCustomTag}
-                    className="h-9 px-4 text-sm bg-black hover:bg-gray-800"
+                    className="h-12 px-6 text-sm font-medium bg-gray-900 hover:bg-gray-800 rounded-lg shadow-md hover:shadow-lg transition-all"
                   >
                     Add
                   </Button>
@@ -440,9 +429,82 @@ const ContributePage = () => {
             </div>
           </section>
 
+          {/* Your Information */}
+          <section className="bg-white rounded-xl p-8 shadow-lg shadow-blue-100/50 border border-gray-100">
+            {/* Public Contributor Toggle */}
+            <div className="mb-8 pb-6 border-b border-gray-200">
+              <div className="flex items-center justify-between">
+                <h3 className="text-base font-medium text-gray-900">
+                  Do you want your name shown publicly as contributor?
+                </h3>
+                <div className="flex items-center gap-6">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <div className="relative">
+                      <input
+                        type="radio"
+                        name="showPublicly"
+                        value="yes"
+                        checked={formData.showPublicly === 'yes'}
+                        onChange={(e) => handleInputChange('showPublicly', e.target.value)}
+                        className="sr-only peer"
+                      />
+                      <div className="w-5 h-5 border-2 rounded-full border-gray-300 peer-checked:border-yellow-500 peer-checked:bg-yellow-500 flex items-center justify-center transition-all">
+                        <div className="w-2 h-2 bg-white rounded-full opacity-0 peer-checked:opacity-100"></div>
+                      </div>
+                    </div>
+                    <span className="text-sm font-medium text-gray-700">Yes</span>
+                  </label>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <div className="relative">
+                      <input
+                        type="radio"
+                        name="showPublicly"
+                        value="no"
+                        checked={formData.showPublicly === 'no'}
+                        onChange={(e) => handleInputChange('showPublicly', e.target.value)}
+                        className="sr-only peer"
+                      />
+                      <div className="w-5 h-5 border-2 rounded-full border-gray-300 peer-checked:border-gray-600 peer-checked:bg-gray-600 flex items-center justify-center transition-all">
+                        <div className="w-2 h-2 bg-white rounded-full opacity-0 peer-checked:opacity-100"></div>
+                      </div>
+                    </div>
+                    <span className="text-sm font-medium text-gray-700">No</span>
+                  </label>
+                </div>
+              </div>
+            </div>
+
+            <h2 className="text-lg font-semibold text-gray-900 mb-2">Your Information</h2>
+            <p className="text-gray-500 text-sm mb-6">Help us attribute your contribution properly (optional but recommended)</p>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="relative">
+                <User className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4" />
+                <Input
+                  type="text"
+                  placeholder="Your name"
+                  className="pl-11 h-12 text-sm border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  value={formData.name}
+                  onChange={(e) => handleInputChange('name', e.target.value)}
+                />
+              </div>
+
+              <div className="relative">
+                <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4" />
+                <Input
+                  type="email"
+                  placeholder="Your email address"
+                  className="pl-11 h-12 text-sm border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  value={formData.email}
+                  onChange={(e) => handleInputChange('email', e.target.value)}
+                />
+              </div>
+            </div>
+          </section>
+
           {/* Status Message */}
           {submitStatus && (
-            <div className={`p-4 rounded-lg ${
+            <div className={`p-5 rounded-xl text-sm font-medium shadow-md ${
               submitStatus.type === 'success'
                 ? 'bg-green-50 text-green-800 border border-green-200'
                 : 'bg-red-50 text-red-800 border border-red-200'
@@ -452,21 +514,21 @@ const ContributePage = () => {
           )}
 
           {/* Action Buttons */}
-          <div className="flex flex-col gap-3 pt-4">
+          <div className="flex justify-end gap-4 pt-4">
             <Button
               type="button"
               variant="outline"
-              className="w-full h-10 text-sm border-gray-300"
+              className="px-10 h-12 text-sm border-gray-300 hover:bg-gray-50 rounded-lg font-medium transition-all"
               disabled={isSubmitting}
             >
-              Save as Draft
+              Save as draft
             </Button>
             <Button
               type="submit"
-              className="w-full h-10 text-sm bg-black hover:bg-gray-800"
+              className="px-10 h-12 text-sm bg-slate-800 hover:bg-slate-900 text-white font-medium rounded-lg shadow-md hover:shadow-lg transition-all"
               disabled={isSubmitting}
             >
-              {isSubmitting ? 'Submitting...' : 'Submit for Review'}
+              {isSubmitting ? 'Submitting...' : 'Submit'}
             </Button>
           </div>
         </form>

@@ -23,37 +23,12 @@ import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
 import React, { Suspense, useEffect, useState } from 'react'
 
-// Component for handling OG image fetching using the cached async endpoint
+// Component for displaying resource thumbnail using imageUrl from database
 const ResourceThumbnail = ({ resource }: { resource: Resource }) => {
-  const [ogImage, setOgImage] = useState<string | null>(null)
-  const [isLoading, setIsLoading] = useState(false)
   const [hasError, setHasError] = useState(false)
 
-  useEffect(() => {
-    if (!resource.image && resource.linkToOriginalSource && resource.id) {
-      setIsLoading(true)
-      fetch('/api/og-image-async', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          resourceId: resource.id,
-          url: resource.linkToOriginalSource
-        })
-      })
-        .then(res => res.json())
-        .then(data => {
-          if (data.ogImage) {
-            setOgImage(data.ogImage)
-          }
-        })
-        .catch(() => setHasError(true))
-        .finally(() => setIsLoading(false))
-    }
-  }, [resource.image, resource.linkToOriginalSource, resource.id])
-
-  const imageUrl = resource.image || ogImage
+  // Use imageUrl from Cloudflare R2 if available, otherwise fall back to image field
+  const imageUrl = resource.imageUrl || resource.image
 
   return (
     <div className="relative h-28 w-36 shrink-0 overflow-hidden rounded-md bg-muted md:h-full md:w-44">
@@ -84,15 +59,6 @@ const ResourceThumbnail = ({ resource }: { resource: Resource }) => {
               }}
             />
           </div>
-          {/* Loading state only */}
-          {isLoading && (
-            <div className="absolute inset-0 flex items-center justify-center z-10">
-              <div className="animate-pulse text-center text-muted-foreground">
-                <FileText className="mx-auto h-8 w-8 mb-2" strokeWidth={1} />
-                <p className="text-xs font-medium">Loading...</p>
-              </div>
-            </div>
-          )}
         </div>
       )}
 
@@ -125,6 +91,7 @@ type Resource = {
     date: string
     DateOfPublication?: string
     image?: string
+    imageUrl?: string
     theme?: string
     authors?: string
     linkToOriginalSource?: string
@@ -135,11 +102,13 @@ const SearchContent = (): React.JSX.Element => {
     const [selectedTopics, setSelectedTopics] = useState<string[]>([])
     const [selectedTypes, setSelectedTypes] = useState<Set<TypeKey>>(new Set())
     const [selectedTags, setSelectedTags] = useState<Set<string>>(new Set())
+    const [selectedLocations, setSelectedLocations] = useState<string[]>([])
     const [results, setResults] = useState<Resource[]>([])
     const [loading, setLoading] = useState<boolean>(true)
     const [topics, setTopics] = useState<{id: string, name: string}[]>([])
     const [tags, setTags] = useState<string[]>([])
     const [types, setTypes] = useState<string[]>([])
+    const [locations, setLocations] = useState<string[]>([])
     const [relevantTypes, setRelevantTypes] = useState<string[]>([])
     const [relevantTags, setRelevantTags] = useState<string[]>([])
     const [relevantTopics, setRelevantTopics] = useState<string[]>([])
@@ -148,12 +117,13 @@ const SearchContent = (): React.JSX.Element => {
     const searchParams = useSearchParams()
     const query = searchParams.get("query") || ""
 
-    // Load topics, tags, and types
+    // Load topics, tags, types, and locations
     useEffect(() => {
         let mounted = true
         const themesController = new AbortController()
         const catsController = new AbortController()
         const typesController = new AbortController()
+        const locationsController = new AbortController()
         Promise.all([
             fetch('/api/themes', { signal: themesController.signal })
                 .then(r => r.ok ? r.json() : { data: [] })
@@ -164,7 +134,10 @@ const SearchContent = (): React.JSX.Element => {
             fetch('/api/types', { signal: typesController.signal })
                 .then(r => r.ok ? r.json() : { data: [] })
                 .catch(() => ({ data: ['Report', 'Article', 'Judgement', 'Video', 'Podcast'] })),
-        ]).then(([themesRes, categoriesRes, typesRes]) => {
+            fetch('/api/locations', { signal: locationsController.signal })
+                .then(r => r.ok ? r.json() : { data: [] })
+                .catch(() => ({ data: [] })),
+        ]).then(([themesRes, categoriesRes, typesRes, locationsRes]) => {
             if (!mounted) return
             console.log('Raw themes data:', themesRes?.data)
             const uniqueThemeNames = [...new Set(
@@ -195,12 +168,16 @@ const SearchContent = (): React.JSX.Element => {
             const tys = Array.isArray(typesRes?.data) && typesRes.data.length > 0
                 ? typesRes.data.map((t: unknown) => String(t))
                 : ['Report', 'Article', 'Judgement', 'Video', 'Podcast']
+            const locs = Array.isArray(locationsRes?.data) && locationsRes.data.length > 0
+                ? locationsRes.data.map((l: unknown) => String(l))
+                : []
             setTopics(tps)
             setTags(tgs)
             setTypes(tys)
+            setLocations(locs)
             // No need to set default selection for multi-select
         })
-        return () => { mounted = false; themesController.abort(); catsController.abort(); typesController.abort() }
+        return () => { mounted = false; themesController.abort(); catsController.abort(); typesController.abort(); locationsController.abort() }
     }, [])
 
     // Fetch results when filters change
@@ -231,6 +208,11 @@ const SearchContent = (): React.JSX.Element => {
         // Theme filter (topics)
         if (selectedTopics.length > 0) {
             selectedTopics.forEach(topic => params.append('themes', topic));
+        }
+
+        // Location filter
+        if (selectedLocations.length > 0) {
+            selectedLocations.forEach(location => params.append('locations', location));
         }
 
         fetch(`/api/search?${params.toString()}`, { signal: controller.signal })
@@ -303,7 +285,7 @@ const SearchContent = (): React.JSX.Element => {
             .catch((err) => { if (mounted && err?.name !== 'AbortError') setResults([]) })
             .finally(() => { if (mounted) setLoading(false) })
         return () => { mounted = false; controller.abort() }
-    }, [query, selectedTopics, selectedTypes, selectedTags, setResults, setLoading])
+    }, [query, selectedTopics, selectedTypes, selectedTags, selectedLocations, setResults, setLoading])
 
     const onToggleType = (type: TypeKey) => {
         setSelectedTypes(prev => {
@@ -549,6 +531,35 @@ const SearchContent = (): React.JSX.Element => {
                         ))
                       ) : (
                         <p className="text-sm text-muted-foreground">No tags found in results</p>
+                      )}
+                    </div>
+                  </section>
+
+                  {/* Locations */}
+                  <section className="space-y-2">
+                    <h3 className="text-sm font-medium text-muted-foreground">Locations</h3>
+                    <div className="max-h-60 overflow-y-auto space-y-2">
+                      {locations.length > 0 ? (
+                        locations.map((location) => (
+                          <div key={location} className="flex items-center space-x-2">
+                            <Checkbox
+                              id={`location-${location}`}
+                              checked={selectedLocations.includes(location)}
+                              onCheckedChange={(checked) => {
+                                setSelectedLocations(prev =>
+                                  checked
+                                    ? [...prev, location]
+                                    : prev.filter(l => l !== location)
+                                );
+                              }}
+                            />
+                            <Label htmlFor={`location-${location}`} className="text-sm font-normal">
+                              {location}
+                            </Label>
+                          </div>
+                        ))
+                      ) : (
+                        <p className="text-sm text-muted-foreground">No locations available</p>
                       )}
                     </div>
                   </section>

@@ -20,6 +20,7 @@ type Resource = {
   date: string;
   dateOfPublication?: string;
   image?: string;
+  imageUrl?: string;
   theme?: string;
   tags?: string[];
   authors?: string;
@@ -30,35 +31,6 @@ const Featured = () => {
   const [items, setItems] = useState<Resource[]>([])
   const [loading, setLoading] = useState(true)
 
-  const fetchImage = useCallback(async (item: Resource) => {
-    if (!item?.linkToOriginalSource) return
-    
-    try {
-      const response = await fetch('/api/og-image-async', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          resourceId: item.id,
-          url: item.linkToOriginalSource
-        })
-      })
-      
-      const ogData = await response.json()
-      if (ogData.ogImage && !ogData.ogImage.startsWith('/')) {
-        setItems(prevItems => 
-          prevItems.map(prevItem => 
-            prevItem.id === ogData.resourceId 
-              ? { ...prevItem, image: ogData.ogImage }
-              : prevItem
-          )
-        )
-      }
-    } catch (error) {
-      console.error('Failed to fetch OG image:', error)
-    }
-  }, [])
 
   useEffect(() => {
     let mounted = true
@@ -73,13 +45,6 @@ const Featured = () => {
           console.log('[Featured] Using cached data')
           setItems(cachedData)
           setLoading(false)
-          
-          // Fetch images for all items
-          cachedData.forEach((item: Resource) => {
-            if (item?.linkToOriginalSource) {
-              fetchImage(item)
-            }
-          })
           return
         }
 
@@ -97,18 +62,11 @@ const Featured = () => {
           image: item.image
         }))
         
-        // Cache the data for 5 minutes
-        pageCache.set(cacheKey, initialItems, 300)
+        // Cache the data for 10 minutes
+        pageCache.set(cacheKey, initialItems, 600)
         
         setItems(initialItems)
         setLoading(false)
-        
-        // Fetch images for all items
-        featuredData.forEach((item: Resource) => {
-          if (item?.linkToOriginalSource) {
-            fetchImage(item)
-          }
-        })
       } catch (e) {
         console.log("error occurred: " + e)
         if (mounted) {
@@ -116,10 +74,10 @@ const Featured = () => {
         }
       }
     }
-    
+
     load()
     return () => { mounted = false }
-  }, [fetchImage])
+  }, [])
 
 
   const featured = items[0]
@@ -138,11 +96,11 @@ const Featured = () => {
             data-card-id={featured?.id || featured?.title}
           >
             <CardContent className="p-0 relative group">
-            <Image 
-              src={featured?.image || '/trending1.png'} 
-              alt="Featured" 
-              width={400} 
-              height={400} 
+            <Image
+              src={featured?.imageUrl || featured?.image || '/trending1.png'}
+              alt="Featured"
+              width={400}
+              height={400}
               className="w-full rounded-xl h-[320px] object-cover"
               onError={(e) => {
                 const target = e.target as HTMLImageElement;
@@ -223,27 +181,17 @@ const Featured = () => {
               data-card-id={t.id || t.title}
             >
               <div className="w-1/3 h-full">
-                {t.image ? (
-                  <Image
-                    src={t.image}
-                    alt={t.title}
-                    width={400}
-                    height={400}
-                    className="w-full h-full rounded-md object-cover"
-                    onError={(e) => {
-                      const target = e.target as HTMLImageElement;
-                      target.src = getFallbackImage(t?.theme, t?.tags);
-                    }}
-                  />
-                ) : (
-                  <Image
-                    src={getFallbackImage(t?.theme, t?.tags)}
-                    alt={t.title}
-                    width={400}
-                    height={400}
-                    className="w-full h-full rounded-md object-cover"
-                  />
-                )}
+                <Image
+                  src={t.imageUrl || t.image || getFallbackImage(t?.theme, t?.tags)}
+                  alt={t.title}
+                  width={400}
+                  height={400}
+                  className="w-full h-full rounded-md object-cover"
+                  onError={(e) => {
+                    const target = e.target as HTMLImageElement;
+                    target.src = getFallbackImage(t?.theme, t?.tags);
+                  }}
+                />
               </div>
               <div className="space-y-2 w-3/5">
                 <h3 className="text-base md:text-lg font-semibold text-brand-primary-900 line-clamp-2">{t.title}</h3>

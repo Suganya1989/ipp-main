@@ -27,6 +27,7 @@ type Resource = {
   date: string;
   DateOfPublication?: string;
   image?: string;
+  imageUrl?: string;
   theme?: string;
   tags?: string[];
   authors?: string;
@@ -46,7 +47,6 @@ const ResourceDetailsPage = () => {
   const [error, setError] = useState<string | null>(null)
   const [imageLoading, setImageLoading] = useState(true)
   const [imageError, setImageError] = useState(false)
-  const [ogImage, setOgImage] = useState<string | null>(null)
 
   useEffect(() => {
     const fetchResource = async () => {
@@ -62,21 +62,10 @@ const ResourceDetailsPage = () => {
 
         const data = await response.json()
         setResource(data.resource)
-        
+
         // Reset image states when new resource loads
-        setImageLoading(data.resource.image ? true : false)
-        // Fetch OG image if resource has linkToOriginalSource but no image
-        if (data.resource.linkToOriginalSource && !data.resource.image) {
-          setImageLoading(true)
-          // Add timeout to prevent indefinite loading
-          const timeoutId = setTimeout(() => {
-            setImageLoading(false)
-          }, 10000) // 10 second timeout
-          
-          fetchOGImage(data.resource.id, data.resource.linkToOriginalSource).finally(() => {
-            clearTimeout(timeoutId)
-          })
-        }
+        const hasImage = data.resource.imageUrl || data.resource.image
+        setImageLoading(hasImage ? true : false)
 
         // Fetch related resources based on theme
         if (data.resource.theme) {
@@ -91,49 +80,6 @@ const ResourceDetailsPage = () => {
 
     fetchResource()
   }, [params.id])
-
-  // Track processed related resources to avoid duplicate OG fetches
-  const processedRelated = useRef<Set<string | undefined>>(new Set())
-
-  // Fetch OG images for related resources after they are loaded
-  useEffect(() => {
-    const toProcess = relatedResources.filter((item) => {
-      const key = item.id || item.title
-      return (
-        !!key &&
-        !processedRelated.current.has(key) &&
-        !item.image &&
-        !!item.linkToOriginalSource &&
-        item.linkToOriginalSource.startsWith('http')
-      )
-    })
-
-    if (toProcess.length === 0) return
-
-    toProcess.forEach(async (item) => {
-      const key = item.id || item.title
-      if (!key) return
-      processedRelated.current.add(key)
-      try {
-        const resp = await fetch('/api/og-image-async', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ resourceId: item.id, url: item.linkToOriginalSource })
-        })
-        if (!resp.ok) return
-        const ogData = await resp.json()
-        if (ogData?.ogImage && typeof ogData.ogImage === 'string' && !ogData.ogImage.startsWith('/')) {
-          setRelatedResources((prev) => prev.map((r) =>
-            (r.id && ogData.resourceId && r.id === ogData.resourceId)
-              ? { ...r, image: ogData.ogImage }
-              : r
-          ))
-        }
-      } catch {
-        // ignore
-      }
-    })
-  }, [relatedResources])
 
   // Function to fetch related resources
   const fetchRelatedResources = async (theme: string, currentResourceId: string) => {
@@ -150,44 +96,6 @@ const ResourceDetailsPage = () => {
       }
     } catch (error) {
       console.error('Error fetching related resources:', error)
-    }
-  }
-
-  // Function to fetch OG image
-  const fetchOGImage = async (resourceId: string, url: string) => {
-    try {
-      // Add timeout to the fetch request
-      const controller = new AbortController()
-      const timeoutId = setTimeout(() => controller.abort(), 8000) // 8 second timeout
-      
-      const response = await fetch('/api/og-image-async', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          resourceId,
-          url
-        }),
-        signal: controller.signal
-      })
-
-      clearTimeout(timeoutId)
-
-      if (response.ok) {
-        const ogData = await response.json()
-        if (ogData.ogImage) {
-          setOgImage(ogData.ogImage)
-        }
-      }
-    } catch (error) {
-      if (error instanceof Error && error.name === 'AbortError') {
-        console.log('OG image fetch timed out')
-      } else {
-        console.error('Error fetching OG image:', error)
-      }
-    } finally {
-      setImageLoading(false)
     }
   }
 
@@ -275,29 +183,32 @@ const ResourceDetailsPage = () => {
           </header>
 
           {/* Featured Image */}
-          {(resource.image || ogImage) && !imageError && !resource.image?.startsWith('/') && !ogImage?.startsWith('/') && (
-            <div className="my-8">
-              <div className="relative h-64 md:h-96 w-full rounded-lg overflow-hidden bg-gray-100">
-                {imageLoading && (
-                  <div className="absolute inset-0 bg-gray-200 animate-pulse"></div>
-                )}
+          {(() => {
+            const imageUrl = resource.imageUrl || resource.image
+            return imageUrl && !imageError && !imageUrl.startsWith('/') && (
+              <div className="my-8">
+                <div className="relative h-64 md:h-96 w-full rounded-lg overflow-hidden bg-gray-100">
+                  {imageLoading && (
+                    <div className="absolute inset-0 bg-gray-200 animate-pulse"></div>
+                  )}
 
-                <Image
-                  src={resource.image || ogImage || ''}
-                  alt={resource.title}
-                  fill
-                  className="object-cover"
-                  priority
-                  sizes="(max-width: 768px) 100vw, 800px"
-                  onLoad={() => setImageLoading(false)}
-                  onError={() => {
-                    setImageError(true)
-                    setImageLoading(false)
-                  }}
-                />
+                  <Image
+                    src={imageUrl}
+                    alt={resource.title}
+                    fill
+                    className="object-cover"
+                    priority
+                    sizes="(max-width: 768px) 100vw, 800px"
+                    onLoad={() => setImageLoading(false)}
+                    onError={() => {
+                      setImageError(true)
+                      setImageLoading(false)
+                    }}
+                  />
+                </div>
               </div>
-            </div>
-          )}
+            )
+          })()}
 
           {/* Abstract/Summary */}
           <section className="space-y-4">
@@ -462,27 +373,17 @@ const ResourceDetailsPage = () => {
                   <article className="relative h-64 rounded-lg overflow-hidden group hover:scale-105 transition-transform duration-200">
                     {/* Background Image */}
                     <div className="absolute inset-0">
-                      {relatedResource.image ? (
-                        <Image
-                          src={relatedResource.image}
-                          alt={relatedResource.title}
-                          fill
-                          className="object-cover"
-                          sizes="(max-width: 768px) 100vw, (max-width: 1024px) 50vw, 33vw"
-                          onError={(e) => {
-                            const target = e.target as HTMLImageElement;
-                            target.src = getFallbackImage(relatedResource?.theme, relatedResource?.tags)
-                          }}
-                        />
-                      ) : (
-                        <Image
-                          src={getFallbackImage(relatedResource?.theme, relatedResource?.tags)}
-                          alt="Default"
-                          fill
-                          className="object-cover"
-                          sizes="(max-width: 768px) 100vw, (max-width: 1024px) 50vw, 33vw"
-                        />
-                      )}
+                      <Image
+                        src={relatedResource.imageUrl || relatedResource.image || getFallbackImage(relatedResource?.theme, relatedResource?.tags)}
+                        alt={relatedResource.title}
+                        fill
+                        className="object-cover"
+                        sizes="(max-width: 768px) 100vw, (max-width: 1024px) 50vw, 33vw"
+                        onError={(e) => {
+                          const target = e.target as HTMLImageElement;
+                          target.src = getFallbackImage(relatedResource?.theme, relatedResource?.tags)
+                        }}
+                      />
                     </div>
 
                     {/* Dark Overlay */}
