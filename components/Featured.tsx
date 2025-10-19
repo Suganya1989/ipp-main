@@ -102,8 +102,14 @@ const Featured = () => {
               width={400}
               height={400}
               className="w-full rounded-xl h-[320px] object-cover"
+              unoptimized={featured?.imageUrl?.includes('r2.') || featured?.imageUrl?.includes('cloudflare')}
               onError={(e) => {
                 const target = e.target as HTMLImageElement;
+                console.error('Featured image failed to load:', {
+                  imageUrl: featured?.imageUrl,
+                  image: featured?.image,
+                  fallback: '/trending1.png'
+                });
                 target.src = '/trending1.png';
               }}
             />
@@ -187,8 +193,14 @@ const Featured = () => {
                   width={400}
                   height={400}
                   className="w-full h-full rounded-md object-cover"
+                  unoptimized={t?.imageUrl?.includes('r2.') || t?.imageUrl?.includes('cloudflare')}
                   onError={(e) => {
                     const target = e.target as HTMLImageElement;
+                    console.error('Trending image failed to load:', {
+                      imageUrl: t?.imageUrl,
+                      image: t?.image,
+                      title: t?.title
+                    });
                     target.src = getFallbackImage(t?.theme, t?.tags);
                   }}
                 />

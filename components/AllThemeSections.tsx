@@ -87,6 +87,11 @@ const ResourceCard = ({ resource, layout }: {
   // Use imageUrl from database (Cloudflare R2) if available, otherwise fall back to image field
   const imageUrl = resource.imageUrl || resource.image || getFallbackImage(resource?.theme, resource?.tags)
 
+  // Log R2 image URLs for debugging
+  if (resource.imageUrl && (resource.imageUrl.includes('r2.') || resource.imageUrl.includes('cloudflare'))) {
+    console.log('R2 Image URL:', resource.imageUrl, 'for resource:', resource.title)
+  }
+
   if (layout === 'two') {
     return (
       <div ref={cardRef}>
@@ -102,8 +107,14 @@ const ResourceCard = ({ resource, layout }: {
                     height={400}
                     className="w-full object-cover rounded-t-xl h-full"
                     loading="lazy"
+                    unoptimized={imageUrl.includes('r2.') || imageUrl.includes('cloudflare')}
                     onError={(e) => {
                       const target = e.target as HTMLImageElement;
+                      console.error('AllThemes image failed to load (two layout):', {
+                        imageUrl: resource.imageUrl,
+                        image: resource.image,
+                        title: resource.title
+                      });
                       target.src = getFallbackImage(resource?.theme, resource?.tags)
                     }}
                   />
@@ -143,8 +154,14 @@ const ResourceCard = ({ resource, layout }: {
                 height={400}
                 className="w-full h-96 object-cover rounded-xl"
                 loading="lazy"
+                unoptimized={imageUrl.includes('r2.') || imageUrl.includes('cloudflare')}
                 onError={(e) => {
                   const target = e.target as HTMLImageElement;
+                  console.error('AllThemes image failed to load (three layout):', {
+                    imageUrl: resource.imageUrl,
+                    image: resource.image,
+                    title: resource.title
+                  });
                   target.src = getFallbackImage(resource?.theme, resource?.tags)
                 }}
               />
@@ -531,8 +548,14 @@ const AllThemeSections = () => {
                   width={400}
                   height={400}
                   className="w-full h-80 object-cover rounded-xl"
+                  unoptimized={item?.imageUrl?.includes('r2.') || item?.imageUrl?.includes('cloudflare')}
                   onError={(e) => {
                     const target = e.target as HTMLImageElement;
+                    console.error('AllThemes two-column image failed to load:', {
+                      imageUrl: item?.imageUrl,
+                      image: item?.image,
+                      title: item?.title
+                    });
                     target.src = getFallbackImage(item?.theme, item?.tags)
                   }}
                 />
