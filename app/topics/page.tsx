@@ -107,8 +107,16 @@ const TopicsPageContent = () => {
             const data = await response.json()
             const allTags = Array.isArray(data.data) ? data.data.map((t: { name: string }) => t.name) : []
 
+            // Define type for the tag frequency accumulator
+            interface TagFrequency {
+                [key: string]: {
+                    count: number;
+                    displayName: string;
+                };
+            }
+
             // Deduplicate tags case-insensitively and rank by frequency (same logic as search page)
-            const tagFrequency = allTags.reduce((acc, tag) => {
+            const tagFrequency = allTags.reduce((acc: TagFrequency, tag: string) => {
                 if (tag && tag.trim()) {
                     const cleanTag = tag.trim()
                     const lowerKey = cleanTag.toLowerCase()
@@ -118,9 +126,10 @@ const TopicsPageContent = () => {
                     acc[lowerKey].count += 1
                 }
                 return acc
-            }, {} as Record<string, { count: number, displayName: string }>)
+            }, {} as TagFrequency)
 
-            const sortedTags = Object.values(tagFrequency)
+            type TagCount = { count: number; displayName: string };
+            const sortedTags = (Object.values(tagFrequency) as TagCount[])
                 .sort((a, b) => b.count - a.count)
                 .slice(0, 15)
                 .map(item => item.displayName)

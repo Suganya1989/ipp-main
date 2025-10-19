@@ -55,7 +55,7 @@ const ResourceDetailsPage = () => {
       try {
         setLoading(true)
         const response = await fetch(`/api/resource/${params.id}`)
-        
+
         if (!response.ok) {
           throw new Error('Resource not found')
         }
@@ -66,6 +66,11 @@ const ResourceDetailsPage = () => {
         // Reset image states when new resource loads
         const hasImage = data.resource.imageUrl || data.resource.image
         setImageLoading(hasImage ? true : false)
+
+        // Always fetch og:image from the original source if available
+        if (data.resource.linkToOriginalSource && data.resource.id) {
+          fetchAndSaveOgImage(data.resource.id, data.resource.linkToOriginalSource)
+        }
 
         // Fetch related resources based on theme
         if (data.resource.theme) {
@@ -81,12 +86,60 @@ const ResourceDetailsPage = () => {
     fetchResource()
   }, [params.id])
 
+  // Function to fetch and save og:image from original source
+  const fetchAndSaveOgImage = async (resourceId: string, url: string) => {
+    try {
+      // Extract og:image from the original URL
+      const extractResponse = await fetch('/api/extract-url', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ url }),
+      })
+
+      if (!extractResponse.ok) {
+        console.error('Failed to extract og:image from URL')
+        return
+      }
+
+      const extractData = await extractResponse.json()
+
+      if (extractData.image && extractData.image.trim() !== '') {
+        // Upload the image to Cloudflare R2 and update the database
+        const uploadResponse = await fetch('/api/upload-to-r2', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            imageUrl: extractData.image,
+            resourceId: resourceId
+          }),
+        })
+
+        if (uploadResponse.ok) {
+          const uploadData = await uploadResponse.json()
+          console.log('Successfully uploaded og:image to R2 and saved to database')
+          // Update the local resource state to show the new R2 image
+          setResource(prev => prev ? { ...prev, imageUrl: uploadData.r2Url } : null)
+          setImageLoading(true)
+          setImageError(false)
+        } else {
+          console.error('Failed to upload image to R2')
+        }
+      }
+    } catch (error) {
+      console.error('Error fetching and saving og:image:', error)
+    }
+  }
+
   // Function to fetch related resources
   const fetchRelatedResources = async (theme: string, currentResourceId: string) => {
     try {
       const response = await fetch(`/api/search?themes=${encodeURIComponent(theme)}&limit=6`)
       const data = await response.json()
-      
+
       if (data.data && Array.isArray(data.data)) {
         // Filter out the current resource and take first 3
         const filtered = data.data

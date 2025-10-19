@@ -1125,4 +1125,26 @@ export async function hybridSearchByTopicAndTags(
   }
 }
 
+// Update resource image by ID
+export async function updateResourceImage(id: string, imageUrl: string): Promise<boolean> {
+  try {
+    const client = getClient();
+
+    await client.data
+      .updater()
+      .withClassName('DocsWithImages')
+      .withId(id)
+      .withProperties({
+        imageUrl: imageUrl
+      })
+      .do();
+
+    console.log(`Updated resource ${id} with image: ${imageUrl}`);
+    return true;
+  } catch (error) {
+    console.error('Error updating resource image:', error);
+    return false;
+  }
+}
+
 export default getClient;
